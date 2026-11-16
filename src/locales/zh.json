@@ -1107,6 +1107,10 @@
     "offlineBanner": "离线 — 发现已暂停，你的音乐库仍可使用"
   },
   "playing": {
+    "connection": {
+      "offline": "无网络连接。仍可播放已保存的音乐。",
+      "serverUnreachable": "无法连接音乐服务器。可以播放已保存的音乐。"
+    },
     "volume": "音量",
     "volumeOnServer": "服务器音量",
     "output": {
@@ -1132,7 +1136,8 @@
       "playingFromQueue": "正在播放队列中的曲目"
     },
     "lyrics": {
-      "title": "歌词"
+      "title": "歌词",
+      "resumeFollowing": "返回当前歌词"
     },
     "aboutArtist": {
       "header": "歌手"
@@ -1368,6 +1373,7 @@
     "openArrival": "打开",
     "artistLabel": "艺人",
     "status": {
+      "processing": "等待导入音乐库",
       "queued": "排队中",
       "downloading": "正在下载 · {{progress}}%",
       "failed": "未能获取",
@@ -1661,6 +1667,7 @@
       "checkConnection": "检查连接"
     },
     "player": {
+      "favorite": "收藏",
       "close": "关闭播放器",
       "songOptions": "歌曲选项",
       "addToPlaylist": "添加到播放列表",

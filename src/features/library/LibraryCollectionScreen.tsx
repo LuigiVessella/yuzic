@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRoute } from '@react-navigation/native'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import { useTranslation } from 'react-i18next'
 import { notify } from '@/components/toast';
 import { ArrowDownToLine, Disc3, ListMusic, Music2, Users } from 'lucide-react-native'
@@ -74,6 +74,7 @@ type CollectionParams = {
 }
 
 const LibraryCollectionScreen: React.FC = () => {
+  const navigation = useNavigation()
   const route = useRoute<any>()
   const params = (route.params ?? {}) as CollectionParams
   const { type, sort } = params
@@ -85,6 +86,13 @@ const LibraryCollectionScreen: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>(
     sort ?? (type ? DEFAULT_SORT[type] : 'recent')
   )
+
+  const changeSort = useCallback((next: SortOrder) => {
+    setSortOrder(next)
+    // Keep the navigation entry truthful too, so restoring this screen does
+    // not silently revert the sort that the listener chose.
+    navigation.setParams({ sort: next } as never)
+  }, [navigation])
 
   const { items, isLoading } = useLibraryItems(type ?? null, sortOrder)
   const { playSongs } = usePlayingActions()
@@ -147,7 +155,7 @@ const LibraryCollectionScreen: React.FC = () => {
           items={items}
           collection={type ?? null}
           sortOrder={sortOrder}
-          onSortChange={setSortOrder}
+          onSortChange={changeSort}
           sortLabel={sortLabels[sortOrder]}
           header={header}
           refresh={refresh}

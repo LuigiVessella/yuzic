@@ -39,6 +39,8 @@ export interface BrowseItem {
   /** Seconds. */
   duration?: number;
   children?: BrowseItem[];
+  /** Presentation hint for this folder's children; tracks remain a list. */
+  layout?: 'list' | 'grid';
   /**
    * A row that does something rather than playing one thing: `shuffle` plays
    * the tracks beside it in random order. It has no `url` and no `children`.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 import type { SleepTimer } from '../sleepTimer';
 
@@ -70,4 +70,14 @@ describe('the player and its sleep timer', () => {
     expect(view.getByTestId('playing-sleep-timer-indicator')).toBeTruthy();
     expect(view.getByText('playing.sleepTimer.endOfTrack')).toBeTruthy();
   });
+});
+
+it('names the secondary destinations and opens lyrics without changing playback', async () => {
+  const lyrics = jest.fn();
+  const queue = jest.fn();
+  const screen = await render(<BottomControls mode="player" setMode={queue} onOpenOutputSheet={jest.fn()} onOpenLyrics={lyrics} />);
+  await fireEvent.press(screen.getByText('playing.lyrics.title'));
+  expect(lyrics).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByText('playing.queue.title'));
+  expect(queue).toHaveBeenCalledWith('queue');
 });

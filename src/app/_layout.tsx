@@ -32,6 +32,7 @@ import RNRestart from 'react-native-restart';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { PlayerExpansionProvider } from '@/features/player/PlayerExpansion';
 import PlayerHost from '@/features/player/PlayerHost';
+import { ExternalResolutionProvider } from '@/features/sources/ExternalResolutionProvider';
 import { useTheme } from '@/features/theme/useTheme';
 import { useLegacyStatsMigration } from '@/features/listening/useLegacyStatsMigration';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -293,6 +294,7 @@ function AppShell() {
               <NavigationTheme isDarkMode={isDarkMode}>
               <ErrorBoundary>
               <BottomSheetModalProvider>
+                <ExternalResolutionProvider>
                 <SongActionSheetProvider>
                 <PlayerExpansionProvider>
                 <Stack>
@@ -320,6 +322,7 @@ function AppShell() {
                 <ToastHost />
                 </PlayerExpansionProvider>
                 </SongActionSheetProvider>
+                </ExternalResolutionProvider>
               </BottomSheetModalProvider>
               </ErrorBoundary>
               </NavigationTheme>

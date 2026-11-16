@@ -23,6 +23,8 @@ import {
   useOptionSheetBackground,
   useSheetBottomInset,
 } from '@/components/options/OptionSheetPrimitives';
+import CompactPlaybackControl from './CompactPlaybackControl';
+import { useReducedMotion } from '@/features/theme/useReducedMotion';
 import Touchable from '@/components/Touchable';
 type LyricsBottomSheetProps = {
   lyrics: LyricsResult | null;
@@ -52,7 +54,7 @@ function LyricLine({
   inactiveColor: string;
 }) {
   const opacityTarget =
-    variant === 'active' ? 1 : variant === 'adjacent' ? 0.85 : 0.5;
+    variant === 'active' ? 1 : variant === 'adjacent' ? 0.9 : 0.8;
   const opacity = useSharedValue(opacityTarget);
 
   useEffect(() => {
@@ -81,6 +83,8 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
     const { t } = useTranslation();
     const { colors } = useTheme();
     const progress = usePlayingProgress();
+    const reduced = useReducedMotion();
+    const [following, setFollowing] = useState(true);
     const { seekSong } = usePlayingActions();
     const bottomInset = useSheetBottomInset();
     const sheetBg = useOptionSheetBackground();
@@ -103,6 +107,7 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
 
     useEffect(() => {
       lineLayouts.current = {};
+      setFollowing(true);
     }, [lyrics?.lines]);
 
     const onLineLayout = (index: number) => (e: LayoutChangeEvent) => {
@@ -114,7 +119,7 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
     };
 
     useEffect(() => {
-      if (!lines.length || !scrollRef.current || viewportHeight === 0) return;
+      if (!following || !synced || !lines.length || !scrollRef.current || viewportHeight === 0) return;
 
       const layout = lineLayouts.current[currentIndex];
       if (!layout || contentHeight === 0) return;
@@ -128,9 +133,9 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
 
       scrollRef.current.scrollTo({
         y: clampedY,
-        animated: true,
+        animated: !reduced,
       });
-    }, [currentIndex, lines.length, contentHeight, viewportHeight, layoutVersion]);
+    }, [currentIndex, lines.length, contentHeight, viewportHeight, layoutVersion, following, synced, reduced]);
 
     if (!lyrics) return null;
 
@@ -152,7 +157,7 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         stackBehavior="push"
-        onDismiss={onClose}
+        onDismiss={() => { setFollowing(true); onClose(); }}
         backgroundStyle={[optionSheetStyles.sheetBackground, sheetBg]}
         handleIndicatorStyle={{ backgroundColor: colors.border }}
       >
@@ -172,11 +177,19 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
           >
             {t('playing.lyrics.title')}
           </Text>
-          <View style={styles.closeButton} />
+          <CompactPlaybackControl />
         </View>
+
+        {synced && !following && (
+          <Touchable testID="lyrics-resume-following" accessibilityRole="button"
+            onPress={() => setFollowing(true)} style={styles.followButton}>
+            <Text style={{ ...typography.rowSubtitle, color: colors.secondary }}>{t('playing.lyrics.resumeFollowing')}</Text>
+          </Touchable>
+        )}
 
         <BottomSheetScrollView
           ref={scrollRef}
+          onScrollBeginDrag={() => { if (synced) setFollowing(false); }}
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
@@ -200,7 +213,7 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
                 accessibilityLabel={line.text}
                 accessibilityHint={t('a11y.player.seekToLyric')}
                 onLayout={onLineLayout(index)}
-                onPress={() => seekSong(line.startMs / 1000)}
+                onPress={() => { setFollowing(true); seekSong(line.startMs / 1000); }}
               >
                 <LyricLine
                   text={line.text}
@@ -228,6 +241,7 @@ const LyricsBottomSheet = forwardRef<BottomSheetModal, LyricsBottomSheetProps>(
 LyricsBottomSheet.displayName = 'LyricsBottomSheet';
 
 const styles = StyleSheet.create({
+  followButton: { alignItems: 'center', padding: spacing.md, minHeight: 44, justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

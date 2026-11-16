@@ -3,6 +3,7 @@ import { makeLocalId } from '@/domain/identity/LocalId'
 import { serverProvenance } from '@/domain/identity/Provenance'
 import {
   resourcesFromPlayerQueue,
+  resourceFromMediaItem,
   moveSongAfterCurrent,
   reconcileUnshuffledQueue,
   tagSegment,
@@ -340,3 +341,13 @@ describe('collection contexts', () => {
     ])
   })
 })
+
+it('preserves cover art across the native MediaItem-to-resource boundary', () => {
+  const item = {
+    mediaId: makeLocalId('song', serverProvenance('server'), 'track'),
+    url: { uri: 'https://host/audio' }, artworkUrl: 'https://host/cover', albumTitle: 'Album',
+  };
+  const recovered = resourceFromMediaItem(item);
+  expect(recovered?.song.cover).toEqual({ kind: 'url', url: item.artworkUrl });
+  expect(recovered?.song.album.title).toBe('Album');
+});

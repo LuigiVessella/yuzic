@@ -1110,6 +1110,10 @@
     "offlineBanner": "Hors ligne — les découvertes sont en pause, votre bibliothèque reste accessible"
   },
   "playing": {
+    "connection": {
+      "offline": "Pas de r?seau. La musique enregistr?e reste disponible.",
+      "serverUnreachable": "Votre serveur musical est inaccessible. Vous pouvez ?couter la musique enregistr?e."
+    },
     "volume": "Volume",
     "volumeOnServer": "Volume du serveur",
     "output": {
@@ -1135,7 +1139,8 @@
       "playingFromQueue": "Lecture depuis la file d'attente"
     },
     "lyrics": {
-      "title": "Paroles"
+      "title": "Paroles",
+      "resumeFollowing": "Revenir au couplet actuel"
     },
     "aboutArtist": {
       "header": "Artiste"
@@ -1373,6 +1378,7 @@
     "openArrival": "Ouvrir",
     "artistLabel": "Artiste",
     "status": {
+      "processing": "En attente d?import dans la biblioth?que",
       "queued": "En attente",
       "downloading": "Téléchargement · {{progress}} %",
       "failed": "Non reçu",
@@ -1667,6 +1673,7 @@
       "checkConnection": "Vérifier la connexion"
     },
     "player": {
+      "favorite": "Favori",
       "close": "Fermer le lecteur",
       "songOptions": "Options du morceau",
       "addToPlaylist": "Ajouter à une playlist",

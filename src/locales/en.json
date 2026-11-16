@@ -1116,6 +1116,10 @@
     "offlineBanner": "Offline — discovery is paused, and your library is here"
   },
   "playing": {
+    "connection": {
+      "offline": "No network. Saved music is still available.",
+      "serverUnreachable": "Your music server is unreachable. You can listen to saved music."
+    },
     "volume": "Volume",
     "volumeOnServer": "Server volume",
     "output": {
@@ -1141,7 +1145,8 @@
       "playingFromQueue": "Playing from Queue"
     },
     "lyrics": {
-      "title": "Lyrics"
+      "title": "Lyrics",
+      "resumeFollowing": "Return to current verse"
     },
     "aboutArtist": {
       "header": "Artist"
@@ -1389,6 +1394,7 @@
     "openArrival": "Open",
     "artistLabel": "Artist",
     "status": {
+      "processing": "Waiting for library import",
       "queued": "Queued",
       "downloading": "Downloading · {{progress}}%",
       "failed": "Didn't arrive",
@@ -1657,6 +1663,7 @@
       "checkConnection": "Check connection"
     },
     "player": {
+      "favorite": "Favorite",
       "close": "Close player",
       "songOptions": "Song options",
       "addToPlaylist": "Add to playlist",

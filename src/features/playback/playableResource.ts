@@ -89,6 +89,8 @@ export function resourceFromPlayerItem(item: {
   title?: string;
   artist?: string;
   duration?: number;
+  artworkUrl?: string;
+  albumTitle?: string;
 }): PlayableResource | null {
   const mediaId = item.mediaId?.trim();
   const streamUrl = item.url?.trim();
@@ -116,8 +118,8 @@ export function resourceFromPlayerItem(item: {
       // owns it in whatever sense it owned it when it was queued.
       title: item.title ?? '',
       artist: emptyRef('artist', item.artist ?? '') as Song['artist'],
-      album: emptyRef('album', '') as Song['album'],
-      cover: { kind: 'none' },
+      album: emptyRef('album', item.albumTitle ?? '') as Song['album'],
+      cover: item.artworkUrl?.trim() ? { kind: 'url', url: item.artworkUrl } : { kind: 'none' },
       durationSeconds: item.duration ?? 0,
       // Recovered from the player's own queue, so it is whatever the player
       // was told to treat it as; a recovered track is never re-scrobbled.

@@ -193,4 +193,11 @@ module.exports = defineConfig([
       "yuzic/touchable-needs-label": "error",
     },
   },
+  {
+    files: ["src/features/player/**/*.tsx"],
+    ignores: ["**/*.test.tsx"],
+    // Catch missing runtime bindings (such as a removed useTranslation hook)
+    // even when no TypeScript check is run during UI-only work.
+    rules: { "no-undef": "error" },
+  },
 ]);

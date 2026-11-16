@@ -8,6 +8,8 @@ const labels = {
   albums: 'Albums',
   downloads: 'Downloads',
   shuffle: 'Shuffle',
+  artists: 'Artists',
+  library: 'Library',
 };
 
 const streamed = (id: string): BrowseItem => ({ mediaId: id, title: id, url: `https://music.test/${id}` });
@@ -29,6 +31,44 @@ const library = (over: Partial<CarLibrary> = {}): CarLibrary => ({
 const ids = (items: { mediaId: string }[]) => items.map(item => item.mediaId);
 
 describe('the car browse tree', () => {
+  it('keeps Library and Downloads reachable on Android even when every category is populated', () => {
+    const tree = buildCarBrowseTree(library(), labels, { offline: false, android: true });
+    expect(ids(tree)).toEqual(['recent', 'library', 'favorites', 'downloads']);
+    expect(ids(tree[1].items)).toEqual(['artists', 'albums', 'playlists']);
+    expect(tree[1].items[0].children![0].children![0].children?.map(item => item.mediaId))
+      .toEqual(['shuffle', 'e', 'g']);
+  });
+
+  it('keeps complete albums and groups long album lists without truncation', () => {
+    const tracks = Array.from({ length: 150 }, (_, i) => streamed(`track-${i}`));
+    const albums = Array.from({ length: 75 }, (_, i) => collection('album', `album-${i}`, tracks));
+    const tree = buildCarBrowseTree(library({ albums }), labels, { offline: false, android: true });
+    const groups = tree.find(tab => tab.mediaId === 'library')!.items.find(item => item.mediaId === 'albums')!.children!;
+    const listed = groups.flatMap(group => group.children!);
+    expect(listed).toHaveLength(75);
+    expect(listed[0].children).toHaveLength(151);
+  });
+
+  it('uses the playable cover as a folder fallback, including its credentials', () => {
+    const track = { ...streamed('song'), artworkUrl: 'https://music.test/art', artworkHeaders: { Authorization: 'Basic test' } };
+    const album = { ...collection('album', 'no-art', [track]), artworkUrl: undefined };
+    const tree = buildCarBrowseTree(library({ albums: [album] }), labels, { offline: false, android: true });
+    const folder = tree.find(tab => tab.mediaId === 'library')!.items.find(item => item.mediaId === 'albums')!.children![0];
+    expect(folder).toMatchObject({ artworkUrl: track.artworkUrl, artworkHeaders: track.artworkHeaders });
+  });
+
+  it('filters Android artist albums offline and distinguishes artists with the same name', () => {
+    const albums = [
+      { ...collection('album', 'a', [downloaded('x')]), artistId: 'artist-a' },
+      { ...collection('album', 'b', [downloaded('y')]), artistId: 'artist-b' },
+      { ...collection('album', 'c', [streamed('z')]), artistId: 'artist-c' },
+    ];
+    const tree = buildCarBrowseTree(library({ albums }), labels, { offline: true, android: true });
+    expect(tree[0].mediaId).toBe('downloads');
+    const artists = tree.find(tab => tab.mediaId === 'library')!.items.find(item => item.mediaId === 'artists')!;
+    expect(ids(artists.children!)).toEqual(['artist-artist-a', 'artist-artist-b']);
+  });
+
   it('shows recent, favorites, playlists and albums, in that order, and no more than four', () => {
     // Both cars draw the top level as tabs and stop at four.
     const tree = buildCarBrowseTree(library(), labels, { offline: false });

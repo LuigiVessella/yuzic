@@ -57,16 +57,29 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
   const isLocal = sink.kind === 'local' && !airplayDevice;
   const activeDlna = sink.kind === 'dlna' ? sink : null;
 
-  const handleOpen = useCallback(() => { setIsSheetOpen(true); scan(); }, [scan]);
+  const [connectionError, setConnectionError] = useState<'connectFailed' | 'jukeboxFailed' | null>(null);
+  const handleOpen = useCallback(() => { setConnectionError(null); setIsSheetOpen(true); scan(); }, [scan]);
+  const handleSelectLocal = useCallback(async () => {
+    setConnectionError(null);
+    try {
+      await selectLocal();
+      (ref as React.RefObject<BottomSheetModal>).current?.dismiss();
+    } catch {
+      setConnectionError('connectFailed');
+      notify.error(t('playing.output.connectFailed'));
+    }
+  }, [selectLocal, ref, t]);
 
   const [connectingDlnaUdn, setConnectingDlnaUdn] = useState<string | null>(null);
 
   const handleConnectDlna = useCallback(async (device: DiscoveredDevice) => {
+    setConnectionError(null);
     setConnectingDlnaUdn(device.udn);
     try {
       await selectDlna(device);
       (ref as React.RefObject<BottomSheetModal>).current?.dismiss();
     } catch {
+      setConnectionError('connectFailed');
       notify.error(t('playing.output.connectFailed'));
     } finally {
       setConnectingDlnaUdn(null);
@@ -74,10 +87,12 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
   }, [selectDlna, ref, t]);
 
   const handleSelectJukebox = useCallback(async () => {
+    setConnectionError(null);
     try {
       await selectJukebox(serverName);
       (ref as React.RefObject<BottomSheetModal>).current?.dismiss();
     } catch {
+      setConnectionError('jukeboxFailed');
       notify.error(t('playing.output.jukeboxFailed'));
     }
   }, [selectJukebox, serverName, ref, t]);
@@ -101,7 +116,7 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
       backdropComponent={renderBackdrop}
       backgroundStyle={[optionSheetStyles.sheetBackground, sheetBg]}
       handleIndicatorStyle={{ backgroundColor: colors.border }}
-      onChange={(index) => { if (index >= 0) handleOpen(); else setIsSheetOpen(false); }}
+      onChange={(index) => { if (index >= 0) { if (!isSheetOpen) handleOpen(); } else setIsSheetOpen(false); }}
     >
       {/* Scrolls rather than sizing to its content: the list grows as the scan
           finds devices, and a house with a dozen of them used to run off the
@@ -113,20 +128,26 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
           <Text style={[styles.title, { color: colors.secondary }]}>{t('playing.output.title')}</Text>
           <IconActionButton
             icon={<RotateCcw size={icons.inline} color={colors.subtext} />}
-            onPress={scan}
+            onPress={() => { setConnectionError(null); scan(); }}
             loading={isScanning}
             accessibilityLabel={t('a11y.scanForDevices')}
             size="compact"
           />
         </View>
 
+        {connectionError && (
+          <Text accessibilityLiveRegion="polite" style={[styles.empty, { color: colors.secondary }]}>
+            {t(connectionError === 'connectFailed' ? 'playing.output.connectFailed' : 'playing.output.jukeboxFailed')}
+          </Text>
+        )}
+
         {/* This device — selected when no sink has taken the audio elsewhere */}
         <Touchable
           style={[styles.item, { backgroundColor: isLocal ? withAlpha(themeColor, 0.13) : 'transparent', borderRadius: rad.md }]}
-          onPress={async () => {
-            await selectLocal();
-            (ref as React.RefObject<BottomSheetModal>).current?.dismiss();
-          }}
+          onPress={handleSelectLocal}
+          disabled={isSwitching}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isLocal, disabled: isSwitching }}
         >
           <View style={styles.itemLeft}>
             <Smartphone size={icons.row} color={isLocal ? themeColor : colors.subtext} />
@@ -142,6 +163,8 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
         {jukeboxAvailable && (
           <Touchable
             testID="output-jukebox"
+            accessibilityRole="button"
+            accessibilityState={{ selected: sink.kind === 'jukebox', disabled: isSwitching }}
             style={[styles.item, { backgroundColor: sink.kind === 'jukebox' ? withAlpha(themeColor, 0.13) : 'transparent', borderRadius: rad.md }]}
             onPress={handleSelectJukebox}
             disabled={isSwitching}
@@ -190,7 +213,8 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
         {activeDlna && (
           <Touchable
             style={[styles.item, { backgroundColor: withAlpha(themeColor, 0.13), borderRadius: rad.md }]}
-            onPress={selectLocal}
+            onPress={handleSelectLocal}
+            accessibilityRole="button" accessibilityState={{ selected: true, disabled: isSwitching }} disabled={isSwitching}
           >
             <View style={styles.itemLeft}>
               <Cast size={icons.row} color={themeColor} />
@@ -208,6 +232,8 @@ const OutputDeviceSheet = forwardRef<BottomSheetModal>((_, ref) => {
           return (
             <Touchable
               key={device.udn}
+              accessibilityRole="button"
+              accessibilityState={{ busy: connectingDlnaUdn === device.udn, disabled: isSwitching }}
               style={[styles.item, { backgroundColor: 'transparent', borderRadius: rad.md }]}
               onPress={() => handleConnectDlna(device)}
               disabled={isSwitching}

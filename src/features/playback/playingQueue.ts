@@ -17,6 +17,8 @@ export function resourceFromMediaItem(item: MediaItem): PlayableResource | null 
     title: item.title,
     artist: item.artist,
     duration: item.duration,
+    artworkUrl: item.artworkUrl,
+    albumTitle: item.albumTitle,
   })
 }
 

@@ -44,6 +44,9 @@ export const spacing = {
   chartHeight: 60,
 } as const;
 
+/** A restrained album wash behind the neutral player surface. */
+export const playerSurface = { washOpacity: 0.25 } as const;
+
 export const motion = {
   pressIn: 80, pressOut: 150, quick: 140, titleFade: 180, favorite: 200,
   swipe: 220, contentFade: 240, modeChange: 300, washArrival: 450,

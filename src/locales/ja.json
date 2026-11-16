@@ -1107,6 +1107,10 @@
     "offlineBanner": "オフライン — 発見は一時停止中ですが、ライブラリはご利用いただけます"
   },
   "playing": {
+    "connection": {
+      "offline": "ネットワークに接続されていません。保存済みの音楽は再生できます。",
+      "serverUnreachable": "音楽サーバーに接続できません。保存済みの音楽は再生できます。"
+    },
     "volume": "音量",
     "volumeOnServer": "サーバーの音量",
     "output": {
@@ -1132,7 +1136,8 @@
       "playingFromQueue": "キューから再生"
     },
     "lyrics": {
-      "title": "歌詞"
+      "title": "歌詞",
+      "resumeFollowing": "現在の歌詞に戻る"
     },
     "aboutArtist": {
       "header": "アーティスト"
@@ -1368,6 +1373,7 @@
     "openArrival": "開く",
     "artistLabel": "アーティスト",
     "status": {
+      "processing": "ライブラリへの取り込み待ち",
       "queued": "待機中",
       "downloading": "ダウンロード中 · {{progress}}%",
       "failed": "届きませんでした",
@@ -1661,6 +1667,7 @@
       "checkConnection": "接続を確認"
     },
     "player": {
+      "favorite": "お気に入り",
       "close": "プレーヤーを閉じる",
       "songOptions": "曲のオプション",
       "addToPlaylist": "プレイリストに追加",

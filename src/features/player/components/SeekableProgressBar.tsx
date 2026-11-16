@@ -9,6 +9,7 @@ type SeekableProgressBarProps = {
   value: number;
   duration: number;
   onSeek: (position: number) => void;
+  onPreview?: (position: number | null) => void;
   fillColor?: string;
   trackColor?: string;
   style?: object;
@@ -35,6 +36,7 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
   value,
   duration,
   onSeek,
+  onPreview,
   fillColor = onDark.text,
   trackColor = onDark.mutedText,
   style,
@@ -42,6 +44,9 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
   const rad = useRadius();
   const durationRef = useRef(duration);
   const onSeekRef = useRef(onSeek);
+  const previewRef = useRef(onPreview);
+  previewRef.current = onPreview;
+  const previewEnabled = !!onPreview;
   const width = useSharedValue(0);
   const isSeeking = useSharedValue(false);
   const pendingRatio = useSharedValue(-1);
@@ -64,7 +69,10 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
 
   const seekTo = useCallback((ratio: number) => {
     onSeekRef.current(ratio * durationRef.current);
+    previewRef.current?.(null);
   }, []);
+
+  const previewAt = useCallback((ratio: number) => previewRef.current?.(ratio * durationRef.current), []);
 
   const gesture = useMemo(() => {
     const commit = (x: number) => {
@@ -82,9 +90,11 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
       .onStart(event => {
         isSeeking.value = true;
         displayRatio.value = ratioAt(event.x, width.value);
+        if (previewEnabled) runOnJS(previewAt)(displayRatio.value);
       })
       .onUpdate(event => {
         displayRatio.value = ratioAt(event.x, width.value);
+        if (previewEnabled) runOnJS(previewAt)(displayRatio.value);
       })
       // Called for a scrub that is cancelled as well as one that ends: if
       // something does take the touch, the listener still lands where the
@@ -98,7 +108,7 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
     });
 
     return Gesture.Race(scrub, tap);
-  }, [displayRatio, isSeeking, pendingRatio, seekTo, width]);
+  }, [displayRatio, isSeeking, pendingRatio, seekTo, width, previewEnabled, previewAt]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     width.value = event.nativeEvent.layout.width;

@@ -237,6 +237,36 @@ Bookmarks are the mirror of the same story: Navidrome has an explicit endpoint,
 Jellyfin has the same information as `PlaybackPositionTicks` on items. Both
 back the same local map.
 
+Explicit player open/close commands advance a transient interaction epoch.
+A drag captures that epoch at touch-down and stops writing after a later
+command, so a release cannot undo the Back button or close chevron. Queue
+highlighting follows `currentIndex`, not song identity, because a queue may
+contain the same song more than once.
+
+### The player is one panel
+
+`PlayerHost` translates one clipped surface containing `PlayingScreen`; it no
+longer measures, scales or draws artwork above the navigator. The mini player
+always owns its thumbnail, and `PlayerArtwork` owns its bounded horizontal
+carousel, prefetching through the shared artwork cache. Window-coordinate cover
+slots and their handover state have been removed from `PlayerExpansion`.
+Only expansion, the command epoch and the body's scroll offset cross that seam.
+The wash uses the shared cover-accent hook and a restrained design token.
+
+The screen measures its fixed header and footer to size the body. Only the
+header and artwork can start a close drag. A drag begun while the body is
+scrolled stays a scroll until the next gesture; controls and queue rows do not
+inherit a close pan. Reduced motion fades the panel in place. The mini player's
+transport buttons stop press propagation, and a close command supersedes both
+opening and closing gestures already in flight.
+
+Favorites reuse the existing offline-aware star/unstar mutations and shared
+action feedback, scoped to the active server. Lyrics pause auto-follow on manual
+scroll, resume on an explicit action, and expose compact transport without a
+second player session. Untimed lyrics never auto-follow. Seek previews update
+only the progress/timestamps component, keeping the artwork out of that render
+loop. No persisted playback field or engine method is added by this redesign.
+
 ### Adding a new persisted playback dimension
 
 Add the field to `PlaybackState`, an action + reducer, a selector in
@@ -265,6 +295,10 @@ jukebox means the phone plays the track a second time, out loud, next to the
 server already playing it.
 
 ## The player, and the seam it sits behind
+
+`ExternalResolutionProvider` wraps both the navigator and `PlayerHost` in the
+root layout, inside `BottomSheetModalProvider`. The player is a sibling of the
+navigator and cannot read a context provided only by the `(home)` route.
 
 `features/player/backend.ts` defines `PlayerBackend` — the surface the app
 actually uses, derived from its own call sites rather than from anyone's idea
@@ -337,16 +371,33 @@ corrupting the index) or releasing the live one mid-track.
 it and turns each song into a row through the phone queue's own
 `resolvePlayableSong`, so a download plays from the device and the user's
 quality applies. `carBrowseTree` decides the shape, and is pure so it is
-tested: at most four tabs (Recent, Favorites, Playlists, Albums, with
-Downloads when there is room), Shuffle first in every folder, and offline only
-what is downloaded, with Downloads first. Two rules in the conversion
+tested: Android has Recent, Library (Artists, Albums, Playlists), Favorites
+and Downloads, omitting empty tabs. CarPlay keeps Recent, Favorites, Playlists
+and Albums, with Downloads when there is room. Shuffle leads playable folders;
+when the network or server is unreachable, only downloaded tracks remain and
+Downloads comes first. Android
+publishes the full synced catalog without the old 50-collection/100-track cuts;
+missing details drain in batches of at most three shared-cache requests, stopping
+new batches when the account or catalog changes. Empty cached playlists are
+complete results, not missing data. Artist identity comes from the server id,
+not the display name. Long collection lists are grouped by initial; album and
+playlist track lists stay intact so selection preserves the full queue.
+Folder artwork carries the same authentication as tracks, falls back to a
+track's artwork, and never sends a drawn-cover sentinel to the engine. Two rules in the conversion
 (`toBrowseNode`, `createEngineBackend.setBrowseTree`) matter:
 
 - A node's id is its path (`albums/album-1/<song>`), never the song's id. The
   engine keeps the first of a repeated id, and the same song sits under
-  Favorites and its album, so with bare ids it vanished from the album.
+  Favorites and its album, so with bare ids it vanished from the album. Repeated
+  tracks within a playlist get an entry-position path while retaining their
+  original playable track id.
 - An unchanged tree is not sent again. Each send redraws the car and, on
   Android, rewrites the encrypted copy on disk.
+
+Nested Android browse folders carry a `layout` hint through `BrowseItem`:
+album/playlist covers use grids, their tracks use lists. The host retains
+control over the final presentation. Search uses the engine's existing native
+search over this same complete tree; no extra server search is introduced.
 
 **On iOS a car can start the app with no phone window.** `AppDelegate` starts
 the one React root when a CarPlay scene connects, and `PhoneSceneDelegate`
@@ -411,6 +462,23 @@ track/album/auto modes. Those three behave identically today because the
 engine's `Track` carries a single gain figure rather than a pair, so offering
 the choice would be offering three names for one behaviour. Album mode wants an
 engine change, not a settings entry.
+
+### Android notification and lock-screen entry
+
+`patches/yuzic-engine+1.2.5.patch` supplies the media session's activity from
+Android's launcher intent for the running application id, using an immutable,
+updateable activity PendingIntent. Notification and lock-screen entry share the
+same session activity; the host's existing singleTask activity reuses its task.
+The patch is applied by the existing mandatory postinstall/patch verification
+path and must be reviewed when updating the engine pin.
+
+When JavaScript recovers playback from the native queue, `resourceFromMediaItem`
+forwards album title and artwork URL to `resourceFromPlayerItem` instead of
+replacing the cover with `none`. The full player also retries its three visible
+artwork images once on foreground return, clearing transient failure marks and
+remounting the image surfaces against the existing disk cache. Backgrounding
+cancels an unfinished artwork slide. No queue reset or new server endpoint is
+required for either entry path.
 
 ## 3. `contentKind` — routing the player around non-song content
 
@@ -790,6 +858,10 @@ acquiring. The two are deliberately different code paths.
   server-side **Downloaders** as distinct sections (never conflated), the latter
   surfacing all activity a provider reports including jobs started outside yuzic,
   reading the single shared `useDownloadersQueue` poll.
+
+A wanted transfer reported as inactive at 100% is shown as waiting for library
+import (`processing`), not queued or arrived. Only the synced catalog confirms
+arrival; this adds no poll and persists no additional status.
 
 ## 9. Feature-oriented settings — configure the goal, not the provider
 

@@ -624,6 +624,24 @@ describe('a queue the car started', () => {
 });
 
 describe('the browse tree the car is given', () => {
+  it('retains repeated playlist entries with unique browse ids and the same playable identity', async () => {
+    const backend = createEngineBackend();
+    backend.setup();
+    await flush();
+    backend.setBrowseTree([{
+      mediaId: 'playlist', title: 'Playlist', items: [
+        { mediaId: 'song', title: 'Song', url: 'https://music.test/song' },
+        { mediaId: 'song', title: 'Song again', url: 'https://music.test/song' },
+      ],
+    }]);
+    await flush();
+    const tree = named('setBrowseTree')[0].args[0] as {
+      children: { children: { id: string; playable: { id: string } }[] }[];
+    };
+    const entries = tree.children[0].children;
+    expect(new Set(entries.map(entry => entry.id)).size).toBe(2);
+    expect(entries.map(entry => entry.playable.id)).toEqual(['song', 'song']);
+  });
   interface Node {
     id: string;
     artworkUri?: string;

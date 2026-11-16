@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
+import { loadCarDetails } from './loadCarDetails';
 import { getBackend } from '@/features/player/activeBackend';
 import type { BrowseItem } from '@/features/player/browse';
 import { buildCarBrowseTree, type CarCollection } from '@/features/player/carBrowseTree';
@@ -10,13 +12,13 @@ import { usePlaylists } from '@/features/playlist/usePlaylists';
 import { useStarredSongs } from '@/features/library/useStarredSongs';
 import { useCatalogStore } from '@/features/library/useCatalogStore';
 import { useDownloadState } from '@/features/offline/DownloadContext';
-import { useIsOffline } from '@/features/connectivity/useIsOffline';
+import { useServerReachable } from '@/features/connectivity/useServerReachable';
 import type { Album } from '@/domain/entities/Album';
 import type { Playlist } from '@/domain/entities/Playlist';
 import type { AlbumDetail, PlaylistDetail } from '@/domain/entities/Detail';
 import type { Song } from '@/domain/entities/Song';
 import type { LocalId } from '@/domain/identity/LocalId';
-import { buildCover } from '@/providers/registry/covers';
+import { buildCover, isDrawnCover } from '@/providers/registry/covers';
 import { toEngineBoundaryTrack } from '@/features/playback/engineBoundary';
 import type { PlayableResource } from '@/features/playback/playableResource';
 import { rememberResource } from '@/features/playback/knownResources';
@@ -29,6 +31,7 @@ import { selectActiveServer } from '@/state/redux/selectors/serversSelectors';
 import { selectAlbumLastPlayedAt, selectPlaylistLastPlayedAt } from '@/state/redux/selectors/statsSelectors';
 import { useApi } from '@/providers/registry/useApi';
 
+const ANDROID = Platform.OS === 'android';
 const RECENT_LIMIT = 12;
 const ALBUM_LIMIT = 50;
 const PLAYLIST_LIMIT = 50;
@@ -62,7 +65,7 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
   // Read so the tree rebuilds when they change; `resolve` reads them itself.
   const streamQuality = useStreamQuality();
   const preferredCodec = useSelector(selectPreferredCodec);
-  const offline = useIsOffline();
+  const offline = !useServerReachable();
   const { albums } = useAlbums();
   const { playlists } = usePlaylists();
   const { songs: starred } = useStarredSongs();
@@ -90,8 +93,8 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
     return entries.sort((a, b) => b.at - a.at).slice(0, RECENT_LIMIT);
   }, [albumLastPlayedAt, catalog, playlistLastPlayedAt]);
 
-  const carAlbums = useMemo(() => albums.slice(0, ALBUM_LIMIT), [albums]);
-  const carPlaylists = useMemo(() => playlists.slice(0, PLAYLIST_LIMIT), [playlists]);
+  const carAlbums = useMemo(() => ANDROID ? albums : albums.slice(0, ALBUM_LIMIT), [albums]);
+  const carPlaylists = useMemo(() => ANDROID ? playlists : playlists.slice(0, PLAYLIST_LIMIT), [playlists]);
 
   // Details for what the car will list and cannot yet fill, recent first.
   useEffect(() => {
@@ -110,12 +113,13 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
         return !queryClient.getQueryData([QueryKeys.Album, serverId, item.id])
           && !librarySongs(catalog, item.entity as Album).length;
       }
-      return !queryClient.getQueryData<PlaylistDetail>([QueryKeys.Playlist, serverId, item.id])?.songs?.length;
-    }).slice(0, DETAIL_FETCH_LIMIT);
-    if (!missing.length) return;
+      return !queryClient.getQueryData<PlaylistDetail>([QueryKeys.Playlist, serverId, item.id]);
+    });
+    const pending = ANDROID ? missing : missing.slice(0, DETAIL_FETCH_LIMIT);
+    if (!pending.length) return;
 
     let cancelled = false;
-    Promise.allSettled(missing.map(item => item.kind === 'album'
+    void loadCarDetails(pending.map(item => () => item.kind === 'album'
       ? queryClient.fetchQuery({
         queryKey: [QueryKeys.Album, serverId, item.id],
         queryFn: () => api.albums.get(item.id),
@@ -126,9 +130,7 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
         queryFn: () => api.playlists.get(item.id),
         staleTime: staleTime.playlists,
       })
-    )).then(() => {
-      if (!cancelled) setDetailsVersion(version => version + 1);
-    });
+    ), () => setDetailsVersion(version => version + 1), () => cancelled);
     return () => { cancelled = true; };
   }, [api, carAlbums, carPlaylists, catalog, offline, queryClient, recent, serverId]);
 
@@ -154,9 +156,13 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
       };
     };
     const rows = (songs: readonly Song[]) =>
-      songs.slice(0, TRACK_LIMIT).map(row).filter((item): item is BrowseItem => item !== null);
+      (ANDROID ? songs : songs.slice(0, TRACK_LIMIT)).map(row).filter((item): item is BrowseItem => item !== null);
 
-    const coverFor = (entity: Album | Playlist) => buildCover(entity.cover, 'grid') ?? undefined;
+    const coverFor = (entity: Album | Playlist) => {
+      const uri = buildCover(entity.cover, 'grid');
+      return uri && !isDrawnCover(uri) ? uri : undefined;
+    };
+    const { artworkHeaders } = mediaHeadersForSong(activeServer, {});
 
     const albumCollection = (album: Album): CarCollection => {
       const detail = serverId
@@ -167,7 +173,9 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
         id: album.nativeId,
         title: album.title,
         subtitle: album.artist.name,
+        artistId: album.artist.nativeId,
         artworkUrl: coverFor(album),
+        artworkHeaders,
         tracks: rows(detail?.songs?.length ? detail.songs : librarySongs(catalog, album)),
       };
     };
@@ -181,6 +189,7 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
         id: playlist.nativeId,
         title: playlist.title,
         artworkUrl: coverFor(playlist),
+        artworkHeaders,
         tracks: rows(detail?.songs ?? []),
       };
     };
@@ -207,8 +216,10 @@ export function useCarPlayBrowseTree(resolve: (song: Song) => PlayableResource |
         albums: t('car.albums'),
         downloads: t('car.downloads'),
         shuffle: t('car.shuffle'),
+        library: t('library.title'),
+        artists: t('home.filters.artists'),
       },
-      { offline },
+      { offline, android: ANDROID },
     );
 
     try {

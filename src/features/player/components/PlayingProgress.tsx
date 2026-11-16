@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/Text';
 
@@ -24,7 +24,8 @@ const PlayingProgressSection: React.FC<{ songDuration: number }> = memo(({ songD
   const progress = usePlayingProgress();
   const nativeDuration = progress.duration;
   const duration = nativeDuration > 0 ? nativeDuration : songDuration;
-  const position = Math.min(progress.position, duration);
+  const [preview, setPreview] = useState<number | null>(null);
+  const position = Math.max(0, Math.min(preview ?? progress.position, duration));
 
   return (
     <>
@@ -32,6 +33,7 @@ const PlayingProgressSection: React.FC<{ songDuration: number }> = memo(({ songD
         value={position}
         duration={duration}
         onSeek={seekSong}
+        onPreview={setPreview}
         fillColor={onDark.text}
         trackColor={onDark.mutedText}
         style={styles.progressBar}

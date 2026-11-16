@@ -376,11 +376,9 @@ export function createEngineBackend(): PlayerBackend {
         id: 'root',
         title: 'yuzic',
         children: categories.map(category => ({
-          id: category.mediaId,
-          title: category.title,
+          ...toBrowseNode({ mediaId: category.mediaId, title: category.title, children: category.items }),
           ...(category.icon ? { icon: category.icon } : {}),
           ...(category.layout ? { layout: category.layout } : {}),
-          children: category.items.map(item => toBrowseNode(item, category.mediaId)),
         })),
       };
       const serialized = JSON.stringify(tree);

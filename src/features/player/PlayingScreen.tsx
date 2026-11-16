@@ -13,7 +13,7 @@ import { useSongScreenModel, type SongScreenModel } from '@/features/song/useSon
 import type { LyricsResult } from '@/providers/contracts/ServerAdapter';
 import SongOptions from '@/components/options/SongOptions';
 import Queue from './components/Queue';
-import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { usePlayerExpansion } from '@/features/player/PlayerExpansion';
 import PlaylistList from '@/components/PlaylistList';
@@ -27,6 +27,7 @@ import OutputDeviceSheet from './components/OutputDeviceSheet';
 import AboutTheArtistCard from './components/AboutTheArtistCard';
 import SleepTimerSheet from './components/SleepTimerSheet';
 import PlayingHeader from './components/PlayingHeader';
+import PlayingConnectionStatus from './components/PlayingConnectionStatus';
 import { setSleepTimerPlaybackRate } from './sleepTimer';
 import PlaybackSpeedCard from './components/PlaybackSpeedCard';
 import VolumeCard from './components/VolumeCard';
@@ -37,6 +38,7 @@ import { contentWidth, onDark, spacing } from '@/constants/design';
 import { useWindowLayout } from '@/features/layout/useWindowLayout';
 import { cappedContentWidth } from '@/features/layout/windowClass';
 import { playerLayout } from './playerLayout';
+import { useReducedMotion } from '@/features/theme/useReducedMotion';
 import { useActiveTheme } from '@/features/theme/useActiveTheme';
 
 interface PlayingScreenProps {
@@ -83,7 +85,7 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
     // "End of track" is measured in the listener's time, not the track's.
     useEffect(() => { setSleepTimerPlaybackRate(playbackSpeed); }, [playbackSpeed]);
 
-    const { expansion, scrollY, coverVisibility, isOpen } = usePlayerExpansion();
+    const { expansion, scrollY, isOpen, interactionEpoch } = usePlayerExpansion();
 
     const handleScroll = useAnimatedScrollHandler(event => {
         scrollY.value = event.contentOffset.y;
@@ -98,7 +100,7 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
     // costs nothing.
     const [queueMounted, setQueueMounted] = useState(false);
     const { playerStyle, queueStyle } =
-        usePlayingTransitions(mode, coverVisibility);
+        usePlayingTransitions(mode);
 
     // The player screen is kept mounted between openings, so without this the
     // next tap on the bar would reopen it on whatever was last on screen —
@@ -109,8 +111,7 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
     useEffect(() => {
         if (isOpen) return;
         setMode("player");
-        coverVisibility.value = 1;
-    }, [isOpen, coverVisibility]);
+    }, [isOpen]);
 
     const changeMode = useCallback((next: PlayingViewMode) => {
         if (next === "queue") setQueueMounted(true);
@@ -119,7 +120,10 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
 
     const { width, height, landscape } = useWindowLayout();
     const variant = useActiveTheme().components.playerLayout;
-    const layout = playerLayout({ width, height, landscape }, variant);
+    const [headerHeight, setHeaderHeight] = useState(insets.top + spacing.generous);
+    const [footerHeight, setFooterHeight] = useState(insets.bottom + spacing.generous + spacing.xxl);
+    const bodyHeight = Math.max(0, height - headerHeight - footerHeight);
+    const layout = playerLayout({ width, height: bodyHeight, landscape }, variant);
     // Everything under the player — the lyrics preview, the speed and volume
     // cards, the artist card — lines up with the player above it, which in
     // the split shape is the cover and the column together rather than just
@@ -129,9 +133,11 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
     // The full player fills the first screen and the rest waits below it. The
     // compact one is only as tall as it is, so the lyrics preview and the
     // cards follow straight on: that is what a smaller cover is for.
-    const playerMinHeight = variant === 'compact' ? undefined : height - insets.top - insets.bottom;
+    const playerMinHeight = variant === 'compact' ? undefined : bodyHeight;
 
-    const dragToClose = useDragToClose(expansion, scrollY, height);
+    const reduced = useReducedMotion();
+    const headerScroll = useSharedValue(0);
+    const dragToClose = useDragToClose(expansion, headerScroll, height, interactionEpoch, reduced);
 
     const showPlaybackSpeed = useSelector(selectShowPlaybackSpeed);
     const showVolumeSlider = useSelector(selectShowVolumeSlider);
@@ -211,6 +217,16 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
                         pointerEvents={mode === "player" ? 'auto' : 'none'}
                     >
                         <GestureDetector gesture={dragToClose}>
+                          <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
+                                <PlayingHeader
+                                    paddingTop={insets.top}
+                                    paddingBottom={spacing.md}
+                                    onClose={onClose}
+                                    onOpenSleepTimer={() => sleepTimerSheetRef.current?.present()}
+                                    onOpenSongOptions={() => songOptionsRef.current?.present()}
+                                />
+                          </View>
+                        </GestureDetector>
                         <Animated.ScrollView
                             onScroll={handleScroll}
                             scrollEventThrottle={16}
@@ -230,40 +246,23 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
                                     when there is a screen of height beneath
                                     it and a quarter of a landscape window
                                     when there is not. */}
-                                <PlayingHeader
-                                    paddingTop={insets.top}
-                                    paddingBottom={landscape || layout.inline || layout.bleed ? spacing.md : spacing.xxxl}
-                                    onClose={onClose}
-                                    onOpenSleepTimer={() => sleepTimerSheetRef.current?.present()}
-                                    onOpenSongOptions={() => songOptionsRef.current?.present()}
-                                />
+
+
+                                <PlayingConnectionStatus onDownloads={() => {
+                                    onClose();
+                                    router.push({ pathname: '/libraryCollectionView', params: { type: 'downloaded' } });
+                                }} />
 
                                 <View style={layout.inline ? styles.topContent : styles.centerContent}>
                                     <PlayingMain
                                         layout={layout}
                                         onPressArtist={navigateToArtist}
-                                        onPressOptions={() => songOptionsRef.current?.present()}
-                                        onPressAdd={() => playlistRef.current?.present()}
                                     >
                                         <Controls />
                                     </PlayingMain>
                                 </View>
 
-                                <View
-                                    style={[
-                                        styles.bottomControlsRow,
-                                        {
-                                            width: columnWidth,
-                                            paddingBottom: insets.bottom + spacing.md,
-                                        },
-                                    ]}
-                                >
-                                    <BottomControls
-                                        mode={mode}
-                                        setMode={changeMode}
-                                        onOpenOutputSheet={() => outputDeviceSheetRef.current?.present()}
-                                    />
-                                </View>
+
                             </View>
 
                             {/* The preview card exists to follow the current
@@ -293,7 +292,24 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
                                 onPress={artistId ? navigateToArtist : undefined}
                             />
                         </Animated.ScrollView>
-                        </GestureDetector>
+                                <View
+                                    onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
+                                    style={[
+                                        styles.bottomControlsRow,
+                                        {
+                                            width: cappedContentWidth(width - spacing.section * 2, contentWidth.player),
+                                            paddingBottom: insets.bottom + spacing.md,
+                                            alignSelf: 'center',
+                                        },
+                                    ]}
+                                >
+                                    <BottomControls
+                                        mode={mode}
+                                        onOpenLyrics={lyricsAvailable ? openLyricsSheet : undefined}
+                                        setMode={changeMode}
+                                        onOpenOutputSheet={() => outputDeviceSheetRef.current?.present()}
+                                    />
+                                </View>
                     </Animated.View>
 
                 </View>

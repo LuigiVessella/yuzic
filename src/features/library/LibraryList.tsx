@@ -158,10 +158,9 @@ const LibraryList: React.FC<Props> = ({
               <RefreshControl
                 refreshing={refresh.refreshing}
                 onRefresh={refresh.onRefresh}
-                // The list is drawn on the app's background, which the theme
-                // owns, so the spinner takes the accent rather than iOS grey.
+                // Loading uses the same neutral tint on both platforms.
                 tintColor={colors.secondary}
-                colors={[colors.themeColor]}
+                colors={[colors.secondary]}
               />
             )
             : undefined
