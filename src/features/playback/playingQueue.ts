@@ -195,6 +195,19 @@ export function soleCollectionContext(segments: QueueSegment[]): CollectionConte
 // Segments for a queue whose tracks each remember their collection, as a
 // persisted queue does: consecutive tracks from the same collection share a
 // segment, and consecutive tracks from none share one ad-hoc segment.
+/** Project segment ownership through a filtered queue, preserving each source. */
+export function retainQueueSegments(segments: QueueSegment[], keptIndices: readonly number[]): QueueSegment[] {
+  const projected: QueueSegment[] = []
+  keptIndices.forEach((oldIndex, newIndex) => {
+    const source = segmentAt(segments, oldIndex)?.source
+    if (!source) return
+    const previous = projected[projected.length - 1]
+    if (previous && previous.source === source && previous.startIndex + previous.length === newIndex) previous.length++
+    else projected.push({ startIndex: newIndex, length: 1, source })
+  })
+  return projected
+}
+
 export function segmentsFromContexts(
   contexts: (CollectionContext | null)[],
   adhocContextId: string,

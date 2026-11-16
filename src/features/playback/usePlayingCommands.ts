@@ -47,10 +47,11 @@ export function usePlayingCommands(
   const sinkRef = useLatestRef(sink);
   const jukeboxPosition = useLatestRef(jukeboxState?.positionSeconds ?? 0);
   const { api, buildItem, toMediaItems, resolve, resolvePlayableSong } = resources;
-  const { resetLastScrobbled } = services;
+  const { resetLastScrobbled, persistence } = services;
   const { loadQueueRef, scrobbleOutgoing, autoplay } = engine;
 
   const starters = useMemo(() => createPlaybackStarters({
+    resetPosition: () => persistence.current.persistPosition(0, { force: true }),
     backend: getBackend,
     queue: session.queue,
     setQueue: session.setQueue,
@@ -64,7 +65,7 @@ export function usePlayingCommands(
     bumpQueue: session.bumpQueue,
     loadQueue: (queue, startIndex) => loadQueueRef.current(queue, startIndex),
     now: Date.now,
-  }), [loadQueueRef, resolve, session, toMediaItems]);
+  }), [loadQueueRef, resolve, session, toMediaItems, persistence]);
 
   const transport = useMemo(() => createTransportController({
     backend: getBackend,

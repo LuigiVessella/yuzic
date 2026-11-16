@@ -17,7 +17,7 @@ import { captureOutgoingScrobble, deferOffTrackChange } from './outgoingScrobble
 import type { PlaybackSession } from './playbackSession';
 import { assertPlayable, sameQueue, type PlayableResource } from './playableResource';
 import { backendRepeatMode } from './playingPolicies';
-import { resourcesFromPlayerQueue } from './playingQueue';
+import { retainQueueSegments, resourcesFromPlayerQueue } from './playingQueue';
 import { speedFor } from './speedProfile';
 import { useLatestRef } from './useLatestRef';
 import type { PlaybackResources } from './usePlaybackResources';
@@ -161,7 +161,12 @@ export function usePlaybackEngine(
     currentIndex: session.currentIndex,
     refreshResource: song => resolve.current(song),
     toMediaItems,
-    replaceQueue: session.setQueue,
+    replaceQueue: (queue, keptIndices, currentIndex) => {
+      session.setSegments(retainQueueSegments(session.segments(), keptIndices));
+      session.setQueue(queue);
+      session.setActive(currentIndex, queue[currentIndex]);
+      session.bumpQueue();
+    },
     setCurrentResource: session.setCurrentResource,
     removeFailedCurrentTrack,
     notifyError: () => notify.error(t('common.playbackError')),

@@ -78,3 +78,23 @@ describe('playbackSlice', () => {
     expect(reset.bookmarks).toEqual({})
   })
 })
+
+describe('queue edits preserve the saved playhead only for the same active song', () => {
+  const write = (ids: string[], index: number, preservePosition = false, activeServerId = 'server-A') => setPlaybackQueue({
+    activeServerId, queueSongIds: ids, currentIndex: index, repeatMode: 'off', shuffleMode: 'off', preservePosition,
+  });
+  const paused = () => reducer(reducer(undefined, write(['a', 'b'], 0)), setPlaybackPosition({ positionMs: 42000 }));
+
+  it('preserves position when adding songs or moving the active song', () => {
+    const added = reducer(paused(), write(['a', 'b', 'c'], 0, true));
+    expect(added.positionMs).toBe(42000);
+    const moved = reducer(added, write(['b', 'a', 'c'], 1, true));
+    expect(moved.positionMs).toBe(42000);
+  });
+  it('resets on a new selection, server switch or explicit restart of the same song', () => {
+    expect(reducer(paused(), write(['a', 'b'], 1, true)).positionMs).toBe(0);
+    expect(reducer(paused(), write(['a', 'b'], 0, true, 'server-B')).positionMs).toBe(0);
+    expect(reducer(paused(), write(['a', 'b'], 0)).positionMs).toBe(0);
+    expect(reducer(paused(), write([], 0, true)).positionMs).toBe(0);
+  });
+});

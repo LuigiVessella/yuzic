@@ -248,3 +248,18 @@ describe('persistPosition reaching disk', () => {
     expect(mockFlush).not.toHaveBeenCalled()
   })
 })
+
+it('keeps a paused checkpoint after queue edits and persists the correct duplicate occurrence', async () => {
+  const store = makeStore({ activeServerId: 'server-A' });
+  const { result } = await renderHook(() => usePlaybackPersistence(), { wrapper: wrapperFor(store) });
+  const args = { segments: [], repeatMode: 'off' as const, shuffleMode: 'off' as const };
+  await act(async () => {
+    result.current.persistQueue({ ...args, queue: [resource('a'), resource('a')], currentIndex: 1 });
+    result.current.persistPosition(42, { force: true });
+  });
+  await act(async () => {
+    result.current.persistQueue({ ...args, queue: [resource('a'), resource('radio', 'liveStream'), resource('a'), resource('b')], currentIndex: 2 });
+  });
+  expect(store.getState().playback.currentIndex).toBe(1);
+  expect(store.getState().playback.positionMs).toBe(42000);
+});

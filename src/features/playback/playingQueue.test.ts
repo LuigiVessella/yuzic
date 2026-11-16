@@ -3,6 +3,7 @@ import { makeLocalId } from '@/domain/identity/LocalId'
 import { serverProvenance } from '@/domain/identity/Provenance'
 import {
   resourcesFromPlayerQueue,
+  retainQueueSegments,
   resourceFromMediaItem,
   moveSongAfterCurrent,
   reconcileUnshuffledQueue,
@@ -350,4 +351,13 @@ it('preserves cover art across the native MediaItem-to-resource boundary', () =>
   const recovered = resourceFromMediaItem(item);
   expect(recovered?.song.cover).toEqual({ kind: 'url', url: item.artworkUrl });
   expect(recovered?.song.album.title).toBe('Album');
+});
+
+it('projects collection contexts along the original indices of a filtered retry queue', () => {
+  const playlist = { kind: 'user' as const, contextType: 'playlist' as const, contextId: 'p' };
+  const album = { kind: 'user' as const, contextType: 'album' as const, contextId: 'a' };
+  const segments = [{ startIndex: 0, length: 2, source: playlist }, { startIndex: 2, length: 2, source: album }];
+  const projected = retainQueueSegments(segments, [1, 2, 3]);
+  expect(projected).toEqual([{ startIndex: 0, length: 1, source: playlist }, { startIndex: 1, length: 2, source: album }]);
+  expect(retainQueueSegments(segments, [])).toEqual([]);
 });

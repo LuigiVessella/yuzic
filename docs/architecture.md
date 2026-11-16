@@ -267,6 +267,26 @@ second player session. Untimed lyrics never auto-follow. Seek previews update
 only the progress/timestamps component, keeping the artwork out of that render
 loop. No persisted playback field or engine method is added by this redesign.
 
+### Queue edits, starts and playback recovery
+
+Queue persistence requests position preservation only when the saved server and
+active song still match. New user-selected playback explicitly resets the
+checkpoint through `playbackStarters` before replacing the queue, including a
+restart of the same song. Filtering transient content maps the active occurrence
+by original queue position, never `indexOf(songId)`.
+
+Only native audio `error` events enter playback recovery. Rejected bridge calls
+produce `operationError`, naming the operation and classifying it as command or
+maintenance; they remain logged without marking a listen interrupted, rebuilding
+the queue or dropping a track. This does not yet make a void cache command's UI
+success awaitable.
+
+A retry refreshes resources together with their original indices. If the active
+occurrence cannot resolve, playback pauses and the original queue is retained.
+Otherwise the queue, index and segment ownership are projected through the same
+retained indices before the engine is reloaded. Duplicate song ids therefore do
+not move the playhead to another occurrence during recovery.
+
 ### Adding a new persisted playback dimension
 
 Add the field to `PlaybackState`, an action + reducer, a selector in

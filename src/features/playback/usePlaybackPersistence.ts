@@ -76,15 +76,12 @@ export function usePlaybackPersistence() {
     const queueContexts = kept.map(({ position }) =>
       collectionContextOf(segmentAt(args.segments, position)?.source)
     );
-    // Dropping those items shifts everything after them, so the index has to
-    // be re-found rather than clamped: the current song's own id is what says
-    // where it ended up. It has no place in the saved list only when it is
-    // itself one of the dropped kinds, and then the clamp is all there is.
-    const currentId = args.queue[args.currentIndex]?.song.localId;
-    const mappedIndex = currentId ? ids.indexOf(currentId) : -1;
+    // Map the active occurrence, not the first copy of its song id.
+    const mappedIndex = kept.findIndex(({ position }) => position === args.currentIndex);
     dispatch(setPlaybackQueue({
       activeServerId,
       queueSongIds: ids,
+      preservePosition: true,
       queueContexts,
       currentIndex: mappedIndex >= 0
         ? mappedIndex

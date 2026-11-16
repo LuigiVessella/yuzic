@@ -54,7 +54,7 @@ export interface PlaybackEventDeps {
    */
   refreshResource: (song: Song) => PlayableResource | null;
   toMediaItems: (resources: PlayableResource[]) => MediaItem[];
-  replaceQueue: (resources: PlayableResource[]) => void;
+  replaceQueue: (resources: PlayableResource[], keptIndices: number[], currentIndex: number) => void;
   setCurrentResource: (resource: PlayableResource | null) => void;
   /** Drop the track that cannot be played and move on. */
   removeFailedCurrentTrack: () => void;
@@ -152,12 +152,22 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         lastRecoveryAttemptedId = decision.nextLastRecoveryAttemptedId;
         // Every URL in the queue, not just this track's: they all came from
         // the same session and went stale together.
-        const fresh = deps.queue()
-          .map(entry => deps.refreshResource(entry.song))
-          .filter((entry): entry is PlayableResource => Boolean(entry));
-        deps.replaceQueue(fresh);
-        deps.setCurrentResource(fresh[deps.currentIndex()] ?? resource ?? null);
-        deps.backend().setMediaItems(deps.toMediaItems(fresh), deps.currentIndex());
+        const activeIndex = deps.currentIndex();
+        const kept = deps.queue().map((entry, index) => ({
+          resource: deps.refreshResource(entry.song), index,
+        })).filter((entry): entry is { resource: PlayableResource; index: number } => !!entry.resource);
+        const nextIndex = kept.findIndex(entry => entry.index === activeIndex);
+        // Never silently substitute the next track when the active occurrence
+        // cannot be resolved. Keep the original queue for an explicit retry.
+        if (nextIndex < 0) {
+          deps.backend().pause();
+          deps.notifyStopped();
+          return;
+        }
+        const fresh = kept.map(entry => entry.resource);
+        deps.replaceQueue(fresh, kept.map(entry => entry.index), nextIndex);
+        deps.setCurrentResource(fresh[nextIndex]);
+        deps.backend().setMediaItems(deps.toMediaItems(fresh), nextIndex);
         deps.backend().play();
         return;
       }

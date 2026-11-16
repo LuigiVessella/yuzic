@@ -50,6 +50,7 @@ function harness(over: Partial<{
   now: number;
   /** Move to the next queue entry when a track is dropped, as the engine does. */
   advanceOnRemove: boolean;
+  unresolvable: string[];
 }> = {}) {
   const queue = over.queue ?? [resource('1'), resource('2')];
   let currentQueue = queue;
@@ -78,12 +79,12 @@ function harness(over: Partial<{
     queue: () => currentQueue,
     currentIndex: () => index,
     // A refreshed URL, which is the whole point of the retry path.
-    refreshResource: song => ({
+    refreshResource: song => (over.unresolvable ?? []).includes(song.nativeId) ? null : ({
       song,
       streamUrl: `https://server.test/stream/${song.nativeId}?token=fresh`,
     }),
     toMediaItems: resources => resources.map(r => ({ mediaId: r.song.localId, url: r.streamUrl })),
-    replaceQueue: resources => { currentQueue = resources; },
+    replaceQueue: (resources, _keptIndices, nextIndex) => { currentQueue = resources; index = nextIndex; },
     setCurrentResource: r => { current = r; },
     removeFailedCurrentTrack: () => {
       removed.push(1);
@@ -103,6 +104,7 @@ function harness(over: Partial<{
     stops,
     get queue() { return currentQueue; },
     get current() { return current; },
+    get index() { return index; },
     advance: (ms: number) => { now += ms; },
   };
 }
@@ -287,5 +289,29 @@ describe('a run of tracks that will not play', () => {
     expect(names(h.engineCalls).filter(n => n === 'setMediaItems')).toHaveLength(retriesBefore + 1);
     expect(h.removed).toHaveLength(MAX_DEAD_TRACKS_IN_A_ROW - 1);
     expect(h.stops).toHaveLength(2);
+  });
+});
+
+describe('retry keeps the active queue occurrence', () => {
+  it('remaps the index when an earlier resource cannot be refreshed', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('c')], currentIndex: 1, unresolvable: ['a'] });
+    h.handlers.onError(fail);
+    expect(h.index).toBe(0);
+    expect(h.current?.song.nativeId).toBe('b');
+    expect(h.engineCalls.find(call => call.name === 'setMediaItems')?.args[1]).toBe(0);
+  });
+  it('tracks the second duplicate by position instead of matching the first id', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('b')], currentIndex: 2, unresolvable: ['a'] });
+    h.handlers.onError(fail);
+    expect(h.index).toBe(1);
+  });
+  it('stops without replacing or dropping the queue if the active track cannot resolve', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('c')], currentIndex: 1, unresolvable: ['b'] });
+    h.handlers.onError(fail);
+    expect(h.queue).toHaveLength(3);
+    expect(h.current?.song.nativeId).toBe('b');
+    expect(names(h.engineCalls)).toEqual(['pause']);
+    expect(h.removed).toEqual([]);
+    expect(h.stops).toHaveLength(1);
   });
 });

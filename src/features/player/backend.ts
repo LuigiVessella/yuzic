@@ -160,6 +160,7 @@ export interface PlayerBackend {
  */
 export type BackendEvent =
   | { type: 'error'; code?: string; message: string }
+  | { type: 'operationError'; kind: 'command' | 'maintenance'; operation: string; code: string; message: string }
   | {
       type: 'stateChange';
       buffering: boolean;

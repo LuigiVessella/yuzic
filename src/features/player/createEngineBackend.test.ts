@@ -345,7 +345,7 @@ describe('failures the app would otherwise never see', () => {
     await flush();
 
     expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'error', code: 'ENGINE_CALL_FAILED' })
+      expect.objectContaining({ type: 'operationError', kind: 'command', operation: 'play', code: 'ENGINE_CALL_FAILED' })
     );
   });
 
@@ -353,7 +353,7 @@ describe('failures the app would otherwise never see', () => {
     const backend = createEngineBackend();
     const seen: { message?: string }[] = [];
     backend.addListener((event: { type: string; message?: string }) => {
-      if (event.type === 'error') seen.push(event);
+      if (event.type === 'operationError') seen.push(event);
     });
 
     backend.setup();
@@ -802,4 +802,19 @@ describe('the browse tree the car is given', () => {
     await flush();
     expect(named('setBrowseTree')).toHaveLength(3);
   });
+});
+
+it.each(['clearCache', 'setBrowseTree', 'setEqualizer'])('reports %s failure separately from audio errors', async operation => {
+  const backend = createEngineBackend();
+  const seen: unknown[] = [];
+  backend.addListener((event: unknown) => seen.push(event));
+  backend.setup();
+  await flush();
+  mockFailing = operation;
+  if (operation === 'clearCache') backend.clearCache();
+  else if (operation === 'setBrowseTree') backend.setBrowseTree([{ mediaId: 'test', title: 'Test', items: [] }]);
+  else backend.setEqualizer([]);
+  await flush();
+  expect(seen).toContainEqual(expect.objectContaining({ type: 'operationError', kind: 'maintenance', operation }));
+  expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }));
 });

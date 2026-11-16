@@ -125,19 +125,24 @@ const playbackSlice = createSlice({
       action: PayloadAction<{
         activeServerId: string | null;
         queueSongIds: string[];
+        preservePosition?: boolean;
         queueContexts?: (CollectionContext | null)[];
         currentIndex: number;
         repeatMode: RepeatModeState;
         shuffleMode: ShuffleMode;
       }>
     ) {
+      const sameActive = state.activeServerId === action.payload.activeServerId
+        && !!state.queueSongIds[state.currentIndex]
+        && state.queueSongIds[state.currentIndex] === action.payload.queueSongIds[action.payload.currentIndex];
+      const position = action.payload.preservePosition && sameActive ? state.positionMs : 0;
       state.activeServerId = action.payload.activeServerId;
       state.queueSongIds = action.payload.queueSongIds;
       state.queueContexts = action.payload.queueContexts ?? [];
       state.currentIndex = action.payload.currentIndex;
       state.repeatMode = action.payload.repeatMode;
       state.shuffleMode = action.payload.shuffleMode;
-      state.positionMs = 0;
+      state.positionMs = position;
       state.updatedAt = Date.now();
     },
 

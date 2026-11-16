@@ -1,3 +1,4 @@
+import { operationFailure } from './backendErrors';
 import type { BrowseNode } from 'yuzic-engine';
 import { isFlat } from './audioSettings';
 import type { MediaItem } from './mediaItem';
@@ -98,7 +99,7 @@ export function createEngineBackend(): PlayerBackend {
   function fire(what: string, run: () => Promise<unknown>) {
     const report = (error: unknown) => {
       console.warn(`[player] ${what} failed`, error);
-      emit({ type: 'error', code: 'ENGINE_CALL_FAILED', message: `${what}: ${String(error)}` });
+      emit(operationFailure(what, error));
     };
 
     // Everything waits for setup, and this is not belt-and-braces: on the
