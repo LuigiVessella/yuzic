@@ -30,4 +30,7 @@
 
 ## Contributing
 
+For this personal fork's Android test builds and releases, see
+[the fork build and release guide](docs/fork-releases.md).
+
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and checks, open an [issue](https://github.com/yuzicapp/yuzic/issues) to discuss a change, or join us on [Discord](https://discord.gg/NzsGEhg5Fs).

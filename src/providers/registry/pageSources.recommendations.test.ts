@@ -40,6 +40,14 @@ beforeEach(() => {
 })
 
 describe('fetchPlaylistRecommendations', () => {
+  it('stops expanding after a batch has supplied eight distinct tracks', async () => {
+    mockRelatedArtists.mockResolvedValue(Array.from({ length: 24 }, (_, index) => ({ nativeId: `r${index}`, name: `Neighbour ${index}` })))
+    mockResolveArtist.mockImplementation(async (name: string) => ({ nativeId: name, name }))
+    mockTopTracks.mockImplementation(async (id: string) => [song(`${id}-one`), song(`${id}-two`)])
+    const tracks = await fetchPlaylistRecommendations(['Seed'], { scrobbles: false, catalogue: true })
+    expect(tracks).toHaveLength(8)
+    expect(mockTopTracks).toHaveBeenCalledTimes(4)
+  })
   it('works from the catalogue alone, with no bundled key in play', async () => {
     const tracks = await fetchPlaylistRecommendations(['Seed'], { scrobbles: false, catalogue: true })
 

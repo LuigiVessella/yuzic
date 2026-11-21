@@ -883,6 +883,13 @@ A wanted transfer reported as inactive at 100% is shown as waiting for library
 import (`processing`), not queued or arrived. Only the synced catalog confirms
 arrival; this adds no poll and persists no additional status.
 
+External album rows and actions read the same queued/importing states, including
+a wanted request's existing grace window before it appears in the downloader
+queue. Concurrent Get confirmations for the same target/provider are coalesced;
+failure releases the guard for an explicit retry. Release-group and release
+identities remain distinct: the acquisition boundary resolves an edition to
+its group for Lidarr without changing the browsed entity.
+
 ## 9. Feature-oriented settings — configure the goal, not the provider
 
 Settings pages are organized by what the user wants yuzic to *do*, not by which
@@ -939,6 +946,32 @@ which screen writes the value it is reading.
 
 Home discovery is off by default and layered so the local tier always works
 with zero external calls.
+
+Deezer supplies catalogue suggestions and samples; MusicBrainz supplies canonical
+identity and paged discographies; ListenBrainz supplies personal mixes. All three
+ListenBrainz shelves select from one shared per-user query. Before playback the
+mix is resolved against the library and only owned tracks enter its full-audio
+queue; tapping an unowned track opens the shared acquisition actions. The player
+also rejects unresolved external recording ids at its stream-URL boundary.
+
+Discovery caches hold candidates, not library exclusions: the shared identity
+index filters owned albums at render time, leaving missing albums by familiar
+artists eligible. Existing seeded shuffle rotates catalogue candidates by the
+Home day/refresh seed without moving them on ordinary renders. Playlist
+recommendations expand candidates in batches of four
+and stop once eight distinct tracks are available. A deliberate Home refresh
+expires Deezer's discovery cache, while retaining name/identity lookups.
+Known catalogue items may be opened under the Home/Pages use that supplied them;
+cross-source name searches still require the Search use. Metadata-server addresses
+and recommendation-source choices are included in the affected query keys.
+Known conflicting MusicBrainz entities never become a name-only library match;
+a release-track placement id is not published as a recording MBID. ListenBrainz
+artist/release references retain the canonical identifiers present in JSPF.
+
+Public API limiters space request starts with at most three requests in flight,
+so one slow response cannot block every subsequent start. Superseded external
+searches propagate an AbortSignal through the capability broker to the clients;
+cancellable searches do not share an in-flight promise with other callers.
 
 Home shelf personalization is additive and tier-safe: the Home settings slice
 (`features/settings/home/state.ts`) stores

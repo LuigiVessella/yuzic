@@ -17,7 +17,7 @@ import { connectivityBanner } from '@/features/connectivity/connectivityBanner'
 import { selectSourceUses } from '@/features/settings/sources/state'
 import { selectShowSourceHeaders } from '@/features/settings/appearance/state';
 import { resolveHomeShelfOrder, selectHomeServerSectionsEnabled, selectHomeShelfOrders, selectHomeShelfVisibilityMap, type HomeShelfTier } from '@/features/settings/home/state';
-import { HOME_SOURCE_TIERS } from '@/providers/registry/homeDiscovery'
+import { HOME_SOURCE_TIERS, CATALOGUE_HOME_USE, refreshCatalogueDiscovery } from '@/providers/registry/homeDiscovery'
 import { SOURCES } from '@/providers/registry/sources'
 
 import QuickPicksSection from './components/QuickPicksSection'
@@ -140,9 +140,10 @@ export default function Home() {
   const clearRefreshing = useCallback(() => setIsRefreshing(false), [])
 
   const onRefresh = useCallback(() => {
+    if (!isOffline && sourceUses[CATALOGUE_HOME_USE]) refreshCatalogueDiscovery();
     setIsRefreshing(true)
     setRefreshKey(k => k + 1)
-  }, [])
+  }, [isOffline, sourceUses])
 
   const resumeElements = useMemo(
     () => visibleResume.map(config => renderSection(config, refreshKey)),

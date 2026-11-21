@@ -1,4 +1,5 @@
-import { getReleaseGroup } from '@/providers/integration/musicbrainz';
+import * as musicbrainz from '@/providers/integration/musicbrainz';
+import type { MusicbrainzClient } from '@/providers/integration/musicbrainz';
 
 /**
  * Turns an MBID (release-group) into the canonical title + artist strings
@@ -15,11 +16,13 @@ import { getReleaseGroup } from '@/providers/integration/musicbrainz';
  * — return null so the caller falls back to whatever it had before.
  */
 export async function canonicalizeAlbumFromMbid(
-  mbid: string | null | undefined
+  mbid: string | null | undefined,
+  mbidType: 'release' | 'release-group' = 'release-group',
+  client: Pick<MusicbrainzClient, 'getRelease' | 'getReleaseGroup'> = musicbrainz,
 ): Promise<{ title: string; artist: string } | null> {
   if (!mbid) return null;
   try {
-    const rg = await getReleaseGroup(mbid);
+    const rg = mbidType === 'release' ? await client.getRelease(mbid) : await client.getReleaseGroup(mbid);
     const title = rg.title?.trim();
     const artist = rg['artist-credit']
       ?.map((c) => c.name ?? c.artist?.name)

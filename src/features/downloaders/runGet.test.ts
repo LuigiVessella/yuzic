@@ -17,6 +17,21 @@ const downloaderWith = (def: Record<string, unknown>) =>
   ({ def: { id: 'slskd', label: 'slskd', albumAddedKey: 'added', ...def }, config: {} }) as never;
 
 describe('runGet', () => {
+  it('coalesces repeated confirmations while a request is running, and allows retry afterwards', async () => {
+    let finish!: (result: { success: boolean }) => void;
+    const downloadAlbum = jest.fn(() => new Promise<{ success: boolean }>(resolve => { finish = resolve; }));
+    const request = { downloader: downloaderWith({ downloadAlbum }), album, loadTracks: jest.fn(), t };
+    const first = runGet(request);
+    const second = runGet(request);
+    expect(second).toBe(first);
+    expect(downloadAlbum).toHaveBeenCalledTimes(1);
+    finish({ success: false });
+    expect(await first).toBe(false);
+    const retry = runGet(request);
+    expect(downloadAlbum).toHaveBeenCalledTimes(2);
+    finish({ success: true });
+    expect(await retry).toBe(true);
+  });
   it('reports through one toast from start to finish, never a stack of three', async () => {
     const downloadAlbum = jest.fn().mockResolvedValue({ success: true });
 

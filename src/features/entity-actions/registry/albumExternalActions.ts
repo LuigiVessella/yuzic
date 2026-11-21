@@ -49,11 +49,13 @@ export const albumExternalActions: ActionDef<Ctx>[] = [
   },
   {
     id: 'downloading',
-    label: ctx => ctx.t('externalAlbum.menu.downloading', {
+    label: ctx => ctx.status.kind === 'queued' || ctx.status.kind === 'processing'
+      ? ctx.t(`wants.status.${ctx.status.kind}`)
+      : ctx.t('externalAlbum.menu.downloading', {
       progress: ctx.status.kind === 'downloading' ? ctx.status.progress : undefined,
     }),
     icon: () => null,
-    visible: ctx => ctx.status.kind === 'downloading',
+    visible: ctx => ctx.status.kind === 'downloading' || ctx.status.kind === 'queued' || ctx.status.kind === 'processing',
     enabled: () => false,
     invoke: () => {},
   },

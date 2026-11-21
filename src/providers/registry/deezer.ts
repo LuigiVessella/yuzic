@@ -26,10 +26,10 @@ export const deezerProvider: IntegrationProvider = {
   auth: { tier: 'none' },
   // Its pictures fill gaps through `coverBackups.ts`, not a capability here.
   capabilities: {
-    'catalogue.search': async (query, kinds) => {
+    'catalogue.search': async (query, kinds, signal) => {
       const [artists, albums] = await Promise.all([
-        kinds.artists ? searchDeezerArtists(query, 4) : Promise.resolve([]),
-        kinds.albums ? searchDeezerAlbums(query, 6) : Promise.resolve([]),
+        kinds.artists ? searchDeezerArtists(query, 4, signal) : Promise.resolve([]),
+        kinds.albums ? searchDeezerAlbums(query, 6, signal) : Promise.resolve([]),
       ]);
       return {
         // Deezer has no second line worth showing for an artist, and an

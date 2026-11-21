@@ -12,7 +12,7 @@ import {
   searchDeezerArtists,
   searchDeezerAlbums,
 } from '@/providers/integration/deezer'
-import { selectEnabledSourcesFor } from '@/features/settings/sources/state';
+import { selectEnabledSourcesFor, selectSourceServerUrls, selectSourceUses } from '@/features/settings/sources/state';
 import { currentMusicbrainzClient } from '@/providers/registry/musicbrainz'
 import { mapAlbum as mapMbAlbum } from '@/providers/integration/musicbrainz/mapAlbum'
 import { mapArtist as mapMbArtist } from '@/providers/integration/musicbrainz/mapArtist'
@@ -29,6 +29,8 @@ import { artistCoverSubject, missingCover, type CoverSource } from '@/domain/ent
 import { buildCover } from '@/providers/registry/covers'
 import { sourceColor } from '@/constants/design'
 import type { AuthDescriptor, Health } from '@/providers/contracts/Provider'
+import { uniqueNameMatch } from '@/domain/identity/catalogueMatch'
+import { normalizeName } from '@/domain/identity/matching'
 
 export type SourceId = 'deezer' | 'musicbrainz'
 
@@ -128,7 +130,7 @@ type SourceDefinition = {
   resolveAlbumCandidates(artist: string, title: string, limit: number): Promise<SourceResolvedAlbum[]>
   fetchAlbum(id: string): Promise<AlbumDetail | null>
   fetchArtist(id: string, mbid?: string | null): Promise<SourceArtistDetail | null>
-  fetchArtistAlbums(artistId: string, limit: number, artistName?: string): Promise<Album[]>
+  fetchArtistAlbums(artistId: string, limit: number, artistName?: string, offset?: number): Promise<Album[]>
   /**
    * Free-text search, for Search's "Other sources" scope. The only place a
    * search feature should ever name a source: it iterates `ALL_SOURCES` and
@@ -234,16 +236,16 @@ const deezerSource: SourceDefinition = {
     return getDeezerAlbum(id)
   },
 
-  async fetchArtistAlbums(artistId, limit, artistName) {
+  async fetchArtistAlbums(artistId, limit, artistName, offset) {
     const fallback = artistName ? stubDeezerArtist(artistId, artistName) : null
-    return getDeezerArtistAlbums(artistId, limit, fallback)
+    return getDeezerArtistAlbums(artistId, limit, fallback, offset)
   },
 
   async fetchArtist(id, mbid) {
     const base = await getDeezerArtist(id)
     if (!base) return null
     const [albums, topTracks, similarArtists] = await Promise.all([
-      getDeezerArtistAlbums(id, 80, base),
+      getDeezerArtistAlbums(id, 25, base),
       getDeezerArtistTopTracks(id, 10),
       getDeezerRelatedArtists(id, 8),
     ])
@@ -321,7 +323,7 @@ const musicbrainzSource: SourceDefinition = {
 
   async resolveArtist(name) {
     const results = await currentMusicbrainzClient().searchArtist(name, 5)
-    const best = results[0]
+    const best = uniqueNameMatch(results, name, artist => artist.name)
     if (!best) return null
     const artist = mapMbArtist(best, MB_PROVENANCE)
     return { source: 'musicbrainz', id: artist.nativeId, name: artist.name }
@@ -354,7 +356,11 @@ const musicbrainzSource: SourceDefinition = {
 
   async resolveAlbum(artist, title) {
     const results = await currentMusicbrainzClient().searchReleaseGroup(artist, title, 5)
-    const best = results[0]
+    const best = uniqueNameMatch(
+      results.filter(rg => rg['artist-credit']?.some(credit => normalizeName(credit.artist.name) === normalizeName(artist))),
+      title,
+      rg => rg.title,
+    )
     if (!best) return null
     const album = mapMbAlbum(best, { provenance: MB_PROVENANCE })
     return {
@@ -376,10 +382,9 @@ const musicbrainzSource: SourceDefinition = {
     return { album, songs }
   },
 
-  async fetchArtistAlbums(artistId, limit) {
-    const artist = await currentMusicbrainzClient().getArtistWithReleases(artistId)
-    const rgs = creditedTo(artist)
-    return rgs.slice(0, limit).map(rg => mapMbAlbum(rg, { provenance: MB_PROVENANCE }))
+  async fetchArtistAlbums(artistId, limit, _artistName, offset = 0) {
+    const rgs = await currentMusicbrainzClient().getArtistReleaseGroups(artistId, limit, offset)
+    return rgs.map(rg => mapMbAlbum(rg, { provenance: MB_PROVENANCE }))
   },
 
   async fetchArtist(id) {
@@ -436,6 +441,15 @@ export function useEnabledExternalSources(): SourceDefinition[] {
   return ALL_SOURCES.filter(s => enabled.includes(s.id))
 }
 
+/** A known catalogue item can be opened under the use that supplied it. */
+export function useBrowsableExternalSources(): SourceDefinition[] {
+  const uses = useSelector(selectSourceUses)
+  return ALL_SOURCES.filter(source => (
+    source.id === 'musicbrainz' && (uses['listenbrainz.homeShelves'] || uses['listenbrainz.similarArtists'])
+  ) || ['search', 'homeShelves', 'recommendations', 'popularTracks', 'similarArtists']
+    .some(purpose => uses[`${source.id}.${purpose}` as keyof typeof uses]))
+}
+
 type ExternalArtistLookupInput = { enabled: boolean; source?: string; artistId: string | null; mbid: string | null; name: string | null }
 
 /** Resolves one external artist: direct source+id, then mbid (MusicBrainz,
@@ -445,11 +459,11 @@ type ExternalArtistLookupInput = { enabled: boolean; source?: string; artistId: 
 export function useExternalArtistLookup(input: ExternalArtistLookupInput) {
   const { enabled, source, artistId, mbid, name } = input
   const enabledSearch = useSelector(selectEnabledSourcesFor('search'))
+  const serverUrls = useSelector(selectSourceServerUrls)
   const musicbrainzEnabled = enabledSearch.includes('musicbrainz')
-  const deezerEnabled = enabledSearch.includes('deezer')
 
   return useQuery({
-    queryKey: [QueryKeys.ExternalArtist, source ?? 'unknown', artistId ?? mbid ?? name ?? ''],
+    queryKey: [QueryKeys.ExternalArtist, source ?? 'unknown', artistId ?? mbid ?? name ?? '', enabledSearch, serverUrls],
     enabled,
     staleTime: 1000 * 60 * 60 * 24,
     queryFn: async (): Promise<SourceArtistDetail | null> => {
@@ -461,11 +475,10 @@ export function useExternalArtistLookup(input: ExternalArtistLookupInput) {
         if (mb) return mb.fetchArtist(mbid, mbid)
       }
 
-      if (name && deezerEnabled) {
-        const deezer = ALL_SOURCES.find(s => s.id === 'deezer')
-        if (deezer) {
-          const resolved = await deezer.resolveArtist(name)
-          if (resolved) return deezer.fetchArtist(resolved.id, mbid)
+      if (name) {
+        for (const candidate of ALL_SOURCES.filter(source => enabledSearch.includes(source.id))) {
+          const resolved = await candidate.resolveArtist(name)
+          if (resolved) return candidate.fetchArtist(resolved.id, mbid)
         }
       }
 

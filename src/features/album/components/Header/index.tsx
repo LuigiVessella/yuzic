@@ -233,7 +233,9 @@ function ExternalServerStatusRow({ model }: { model: AlbumScreenModel }) {
   return (
     <StatusBanner
       icon={<SpinningLoaderCircle size={icons.badge} color={statusColor.downloading} />}
-      text={t('externalAlbum.serverStatus.downloadingToServer', { progress: albumStatus.progress })}
+      text={albumStatus.kind === 'downloading'
+        ? t('externalAlbum.serverStatus.downloadingToServer', { progress: albumStatus.progress })
+        : t(`wants.status.${albumStatus.kind}`)}
       color={statusColor.downloading}
       style={styles.serverStatusRow}
     />

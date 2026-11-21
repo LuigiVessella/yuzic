@@ -1,0 +1,72 @@
+name: Fork APK release
+
+on:
+  push:
+    tags: ['*-lv.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    if: github.repository == 'LuigiVessella/yuzic'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate tag and stable branch before building
+        shell: pwsh
+        run: |
+          . ./tools/fork/common.ps1
+          $version = Get-ForkVersion
+          Assert-ForkReleaseVersion $version
+          if ($env:GITHUB_REF_NAME -ne $version) { throw 'Tag and package.json version differ.' }
+          Invoke-ForkGit merge-base --is-ancestor HEAD origin/master | Out-Null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android components
+        shell: pwsh
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK installation failed.' }
+      - name: Install production dependencies and verify patches
+        shell: bash
+        run: |
+          npm ci --omit=dev
+          ./tools/verify-patches.sh
+      - name: Build, verify and package the tagged APK
+        shell: pwsh
+        run: |
+          ./tools/fork/build-apk.ps1 -Channel Release
+          ./tools/fork/release-apk.ps1 -ExistingTag -SkipBuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fork-apk-${{ github.ref_name }}
+          path: releases/${{ github.ref_name }}/*
+          if-no-files-found: error
+      - name: Create draft GitHub release with APK and checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $version = $env:GITHUB_REF_NAME
+          gh release view $version *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; existing attachments are not overwritten.' }
+          $files = (Get-ChildItem "releases/$version" -File).FullName
+          gh release create $version @files --verify-tag --draft --title "Yuzic Test $version" --notes-file "docs/releases/$version.md"
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub draft release creation failed.' }

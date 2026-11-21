@@ -64,6 +64,8 @@ const AlbumRow: React.FC<Props> = ({
           <ArrowDownCircle size={icons.badge} color={statusColor.downloading} />
           <Text style={[styles.badgeText, styles.badgeTextBlue]}>{status.progress}%</Text>
         </View>
+      ) : status.kind === 'queued' || status.kind === 'processing' ? (
+        <Text style={[styles.badgeText, { color: colors.subtext }]}>{t(`wants.status.${status.kind}`)}</Text>
       ) : null;
 
     return (

@@ -36,7 +36,8 @@ function nativeIdOf(dto: MbTrack): string {
 }
 
 function externalIdsOf(dto: MbTrack): ExternalIds {
-  const mbid = nativeIdOf(dto);
+  // A release-track placement id is not a recording id.
+  const mbid = dto.recording?.id;
   return mbid ? { mbid } : {};
 }
 
@@ -66,6 +67,7 @@ export function mapSong(dto: MbTrack, context: MapSongContext): Song {
     durationSeconds: dto.length != null ? Math.round(dto.length / 1000) : 0,
     contentKind: 'song',
     trackNumber: dto.position,
+    discNumber: dto.discNumber,
     genres: [],
   };
 }

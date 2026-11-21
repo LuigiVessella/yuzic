@@ -53,7 +53,7 @@ export type RoutableAlbum = {
 };
 
 /** The provider id an already-external record was browsed through, if it says. */
-export function providerIdOf(item: { provenance: Provenance }): string | undefined {
+function providerIdOf(item: { provenance: Provenance }): string | undefined {
   return item.provenance.origin === 'integration' ? item.provenance.providerId : undefined;
 }
 
@@ -97,10 +97,11 @@ export function knownAlbumRoute(item: RoutableAlbum, enabledSources: Sources) {
  * that it now carries each source's runners-up behind the first, so a wrong
  * top match is not the end of the road.
  */
-export function pickFrom<T>(perSource: T[][]): { direct: T | null; all: T[] } {
+export function pickFrom<T>(perSource: T[][], matches?: (candidate: T) => boolean): { direct: T | null; all: T[] } {
   const answered = perSource.filter(list => list.length > 0);
+  const candidates = answered.length === 1 ? answered[0].filter(candidate => !matches || matches(candidate)) : [];
   return {
-    direct: answered.length === 1 ? answered[0][0] : null,
+    direct: candidates.length === 1 ? candidates[0] : null,
     all: answered.flat(),
   };
 }

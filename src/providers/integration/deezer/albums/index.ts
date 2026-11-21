@@ -8,26 +8,10 @@ import type { DeezerPreviewTrack } from '../types';
 // catalog) — see that module's doc comment.
 export type { DeezerPreviewTrack } from '../types';
 
-type DeezerAlbumSearchResult = {
-  id: number;
-  title: string;
-  artist: { name: string };
-};
-
-type DeezerSearchResponse = {
-  data: DeezerAlbumSearchResult[];
-};
-
 type DeezerTracksResponse = {
   data: DeezerPreviewTrack[];
+  next?: string;
 };
-
-async function searchAlbum(query: string): Promise<DeezerAlbumSearchResult | null> {
-  const res = await deezerClient.request<DeezerSearchResponse>(
-    `/search/album?q=${encodeURIComponent(query)}&limit=5`
-  );
-  return res.data?.[0] ?? null;
-}
 
 /**
  * Searches Deezer for an album by artist + title, then fetches its tracks
@@ -42,13 +26,9 @@ export async function searchAlbumPreviews(
   albumTitle: string
 ): Promise<DeezerPreviewTrack[]> {
   const resolved = await resolveDeezerAlbum(artist, albumTitle);
-  let album = resolved
+  const album = resolved
     ? { id: Number(resolved.nativeId), title: resolved.title, artist: { name: resolved.artist.name } }
     : null;
-
-  album ??=
-    await searchAlbum(`artist:"${artist}" album:"${albumTitle}"`) ??
-    await searchAlbum(`${artist} ${albumTitle}`);
 
   if (!album) return [];
 
@@ -56,5 +36,13 @@ export async function searchAlbumPreviews(
     `/album/${album.id}/tracks`
   );
 
-  return tracksRes.data?.filter(t => !!t.preview) ?? [];
+  const tracks = [...(tracksRes.data ?? [])];
+  let next = tracksRes.next;
+  while (next) {
+    const page = await deezerClient.request<DeezerTracksResponse>(`/album/${album.id}/tracks?limit=100&index=${tracks.length}`);
+    if (!page.data?.length) break;
+    tracks.push(...page.data);
+    next = page.next;
+  }
+  return tracks.filter(track => !!track.preview);
 }

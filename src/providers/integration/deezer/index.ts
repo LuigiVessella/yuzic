@@ -13,4 +13,5 @@ export {
   resolveDeezerArtistByName,
   searchDeezerAlbums,
   searchDeezerArtists,
+  refreshDeezerDiscovery,
 } from './catalog';

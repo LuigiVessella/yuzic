@@ -135,6 +135,8 @@ describe('getCreatedForPlaylists', () => {
     expect(track.cover).toEqual(releaseCover);
     expect(track.album.cover).toEqual(releaseCover);
     expect(track.album.externalIds).toEqual({ mbid: 'a7899fa9-cb47-499d-8eb4-a960c68d2d43', mbidType: 'release' });
+    expect(track.artist.externalIds).toEqual({ mbid: 'e4f12dfc-1ee7-4250-8e24-549b6d46676d' });
+    expect(track.artist.nativeId).toBe('e4f12dfc-1ee7-4250-8e24-549b6d46676d');
     // The credit line is still what is shown; the picture is looked up by the first artist.
     expect(track.artist.name).toBe('Ben Böhmer feat. lau.ra');
     expect(track.artist.cover).toEqual({

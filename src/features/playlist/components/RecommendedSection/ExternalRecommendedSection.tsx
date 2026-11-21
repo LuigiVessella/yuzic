@@ -74,8 +74,8 @@ export const ExternalRecommendedSection: React.FC<Props> = ({ playlist, songs, o
   const playlistArtistNames = useMemo(() => computePlaylistArtistNames(songs), [songs]);
 
   const externalQueryKey = useMemo(
-    () => [QueryKeys.RecommendedExternalSongs, 'playlist', playlist.nativeId, playlistArtistNames.join(',')],
-    [playlist.nativeId, playlistArtistNames]
+    () => [QueryKeys.RecommendedExternalSongs, 'playlist', playlist.localId, playlistArtistNames, scrobblesSimilar, catalogueSimilar],
+    [playlist.localId, playlistArtistNames, scrobblesSimilar, catalogueSimilar]
   );
 
   const similarSources = useMemo<SimilarArtistSources>(

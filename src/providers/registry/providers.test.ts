@@ -125,7 +125,7 @@ describe('deezer provider', () => {
     expect(deezerApi.getDeezerAlbum).toHaveBeenCalledWith('d-album');
 
     const found = await deezerProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: false });
-    expect(deezerApi.searchDeezerArtists).toHaveBeenCalledWith('query', 4);
+    expect(deezerApi.searchDeezerArtists).toHaveBeenCalledWith('query', 4, undefined);
     expect(deezerApi.searchDeezerAlbums).not.toHaveBeenCalled();
     expect(found?.artists).toHaveLength(1);
   });
@@ -147,8 +147,8 @@ describe('musicbrainz provider', () => {
     (mapMbAlbum as jest.Mock).mockReturnValue(makeAlbum());
 
     await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: true });
-    expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4);
-    expect(mbApi.searchReleaseGroupByTitle).toHaveBeenCalledWith('query', 6);
+    expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
+    expect(mbApi.searchReleaseGroupByTitle).toHaveBeenCalledWith('query', 6, undefined);
 
     await musicbrainzProvider.capabilities['catalogue.album']?.('mb-rg');
     expect(mbApi.getReleaseGroup).toHaveBeenCalledWith('mb-rg');
@@ -172,8 +172,8 @@ describe('musicbrainz provider', () => {
       await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: true });
 
       expect(mbApi.createMusicbrainzClient).toHaveBeenCalledWith({ serverUrl: 'http://nas:5000' });
-      expect(own.searchArtist).toHaveBeenCalledWith('query', 4);
-      expect(own.searchReleaseGroupByTitle).toHaveBeenCalledWith('query', 6);
+      expect(own.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
+      expect(own.searchReleaseGroupByTitle).toHaveBeenCalledWith('query', 6, undefined);
       expect(mbApi.searchArtist).not.toHaveBeenCalled();
       expect(mbApi.searchReleaseGroupByTitle).not.toHaveBeenCalled();
     });
@@ -185,7 +185,7 @@ describe('musicbrainz provider', () => {
       await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: false });
 
       expect(mbApi.createMusicbrainzClient).not.toHaveBeenCalled();
-      expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4);
+      expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
     });
   });
 

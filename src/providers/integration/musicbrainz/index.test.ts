@@ -91,3 +91,34 @@ describe('MusicBrainz client spacing', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('MusicBrainz discography and editions', () => {
+  const client = createMusicbrainzClient({ serverUrl: 'http://nas:5000' });
+
+  it('browses release groups beyond the first 25 without a new name search', async () => {
+    fetchMock.mockResolvedValue(ok({ 'release-groups': [{ id: 'group-26', title: 'Later Album' }] }));
+    expect(await client.getArtistReleaseGroups('artist-id', 25, 25)).toHaveLength(1);
+    expect(urlOfCall(0)).toContain('/release-group?artist=artist-id&inc=artist-credits&limit=25&offset=25');
+  });
+
+  it('chooses a stable original official edition and preserves disc positions', async () => {
+    fetchMock.mockResolvedValue(ok({ releases: [
+      { id: 'reissue', date: '2020', media: [{ tracks: [{ id: 'bonus', position: 1 }] }] },
+      { id: 'original', date: '1990', media: [
+        { position: 1, tracks: [{ id: 'first', position: 1 }] },
+        { position: 2, tracks: [{ id: 'second', position: 1 }] },
+      ] },
+    ] }));
+    expect(await client.getTracksForReleaseGroup('group-id')).toMatchObject([
+      { id: 'first', position: 1, discNumber: 1 }, { id: 'second', position: 1, discNumber: 2 },
+    ]);
+    expect(urlOfCall(0)).toContain('status=official');
+  });
+
+  it('does not send an aborted search to the server', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(createMusicbrainzClient().searchArtist('old query', 5, controller.signal)).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

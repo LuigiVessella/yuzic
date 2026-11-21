@@ -91,6 +91,23 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('SearchContext handleSearchWithFilters', () => {
+  it('cancels superseded external searches without letting their answer replace the latest results', async () => {
+    let finish!: (albums: unknown[]) => void;
+    mockSearchDeezerAlbums.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    let oldSearch!: Promise<void>;
+    await act(async () => {
+      oldSearch = result.current.handleSearchWithFilters('old', { resultScope: 'other', sourceIds: ['deezer'] });
+    });
+    const signal = mockSearchDeezerAlbums.mock.calls[0][2] as AbortSignal;
+    await act(async () => {
+      await result.current.handleSearchWithFilters('latest', { resultScope: 'other', sourceIds: ['deezer'] });
+    });
+    expect(signal.aborted).toBe(true);
+    await act(async () => { finish([]); await oldSearch; });
+    expect(result.current.searchResults).toHaveLength(1);
+    expect(result.current.hasError).toBe(false);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     mockIsOffline = false;
@@ -129,7 +146,7 @@ describe('SearchContext handleSearchWithFilters', () => {
       });
     });
 
-    expect(mockSearchDeezerAlbums).toHaveBeenCalledWith('rumours', 6);
+    expect(mockSearchDeezerAlbums).toHaveBeenCalledWith('rumours', 6, expect.any(AbortSignal));
     expect(mockSearchReleaseGroupByTitle).not.toHaveBeenCalled();
   });
 

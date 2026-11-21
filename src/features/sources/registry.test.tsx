@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react-native';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 
-import { ALL_SOURCES, getSourceMeta, useEnabledExternalSources } from './registry';
+import { ALL_SOURCES, getSourceMeta, useEnabledExternalSources, useBrowsableExternalSources } from './registry';
 import settingsSourcesReducer, { setSourceUse } from '@/features/settings/sources/state';
 
 function makeStore(overrides: Partial<{ deezer: boolean; musicbrainz: boolean }> = {}) {
@@ -12,6 +12,21 @@ function makeStore(overrides: Partial<{ deezer: boolean; musicbrainz: boolean }>
   if (overrides.musicbrainz !== undefined) store.dispatch(setSourceUse({ use: 'musicbrainz.search', enabled: overrides.musicbrainz }));
   return store;
 }
+
+it('allows opening known Home results without enabling cross-source searches', async () => {
+  const store = makeStore();
+  store.dispatch(setSourceUse({ use: 'deezer.homeShelves', enabled: true }));
+  const { result } = await renderHook(() => ({ browse: useBrowsableExternalSources(), search: useEnabledExternalSources() }), { wrapper: wrapper(store) });
+  expect(result.current.browse.map(source => source.id)).toEqual(['deezer']);
+  expect(result.current.search).toEqual([]);
+});
+
+it('does not turn an artwork-only permission into catalogue browsing', async () => {
+  const store = makeStore();
+  store.dispatch(setSourceUse({ use: 'deezer.artwork', enabled: true }));
+  const { result } = await renderHook(() => useBrowsableExternalSources(), { wrapper: wrapper(store) });
+  expect(result.current).toEqual([]);
+});
 
 function wrapper(store: ReturnType<typeof makeStore>) {
   const Wrapper = ({ children }: { children: ReactNode }) => (

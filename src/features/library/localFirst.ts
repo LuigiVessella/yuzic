@@ -32,7 +32,7 @@ import type { Album } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
 import type { Song } from '@/domain/entities/Song';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
-import { ID_FIELDS as MATCH_ID_FIELDS, normalizeName } from '@/domain/identity/matching';
+import { ID_FIELDS as MATCH_ID_FIELDS, normalizeName, conflictingMbid } from '@/domain/identity/matching';
 
 /**
  * Identifier fields that can carry an exact match, strongest first.
@@ -112,7 +112,8 @@ function buildIndex<T>(
         ) continue;
         return hit.entity;
       }
-      return byName.get(nameKeyOf(subject.primary, subject.secondary)) ?? null;
+      const candidate = byName.get(nameKeyOf(subject.primary, subject.secondary));
+      return candidate && !conflictingMbid(subject.externalIds, read(candidate).externalIds) ? candidate : null;
     },
   };
 }

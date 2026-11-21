@@ -59,10 +59,10 @@ export const musicbrainzProvider: IntegrationProvider = {
   presentation: { nameKey: 'settings.sources.musicbrainz.name', icon: 0, color: sourceColor.musicbrainz },
   auth: { tier: 'none' },
   capabilities: {
-    'catalogue.search': async (query, kinds) => {
+    'catalogue.search': async (query, kinds, signal) => {
       const [artists, releaseGroups] = await Promise.all([
-        kinds.artists ? currentMusicbrainzClient().searchArtist(query, 4) : Promise.resolve([]),
-        kinds.albums ? currentMusicbrainzClient().searchReleaseGroupByTitle(query, 6) : Promise.resolve([]),
+        kinds.artists ? currentMusicbrainzClient().searchArtist(query, 4, signal) : Promise.resolve([]),
+        kinds.albums ? currentMusicbrainzClient().searchReleaseGroupByTitle(query, 6, signal) : Promise.resolve([]),
       ]);
       return {
         // MusicBrainz names no second line for an artist; for a release group

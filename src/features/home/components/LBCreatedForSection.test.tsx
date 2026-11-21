@@ -1,10 +1,14 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 
 import LBCreatedForSection from './LBCreatedForSection';
 import type { Song } from '@/domain/entities/Song';
+
+const mockLocalCopies = new Map<string, Song>();
+const mockPlaySongs = jest.fn().mockResolvedValue(undefined);
+const mockOpenOptions = jest.fn();
 
 jest.mock('@/features/library/useLocalFirst', () => ({
   useLocalFirst: () => ({
@@ -16,7 +20,7 @@ jest.mock('@/features/library/useLocalFirst', () => ({
     localSong: () => null,
     localAlbum: () => null,
     localArtist: () => null,
-    preferLocalSong: (song: unknown) => song,
+    preferLocalSong: (song: Song) => mockLocalCopies.get(song.nativeId) ?? song,
   }),
 }));
 jest.mock('react-i18next', () => ({
@@ -36,11 +40,11 @@ jest.mock('@/features/theme/useRadius', () => ({
 }));
 
 jest.mock('@/features/playback/PlayingContext', () => ({
-  usePlayingActions: () => ({ playSongInCollection: jest.fn() }),
+  usePlayingActions: () => ({ playSongInCollection: jest.fn(), playSongs: mockPlaySongs }),
 }));
 
 jest.mock('@/features/entity-actions/SongActionSheetContext', () => ({
-  useSongActionSheets: () => ({ openSongOptions: jest.fn() }),
+  useSongActionSheets: () => ({ openSongOptions: mockOpenOptions }),
 }));
 
 jest.mock('@/features/offline/DownloadContext', () => ({
@@ -143,6 +147,39 @@ const sampleTrack: Song = {
 describe('LBCreatedForSection', () => {
   beforeEach(() => {
     mockUseQuery.mockReset();
+    mockLocalCopies.clear();
+    mockPlaySongs.mockClear();
+    mockOpenOptions.mockClear();
+  });
+
+  it('plays only library copies, keeping the tapped song after missing entries', async () => {
+    const owned = { ...sampleTrack, nativeId: 'server-42', provenance: { origin: 'server', serverId: 's1' }, contentKind: 'song' } as Song;
+    const missing = { ...sampleTrack, nativeId: 'missing', title: 'Missing Song' };
+    mockLocalCopies.set(sampleTrack.nativeId, owned);
+    mockUseQuery.mockReturnValue({ data: [missing, sampleTrack], isLoading: false });
+    const view = await renderWithStore(<LBCreatedForSection sectionKey="mix" mixType="daily-jams" />);
+    await fireEvent.press(view.getByText('Song One'));
+    expect(mockPlaySongs).toHaveBeenCalledWith([owned], { startIndex: 0, contextId: 'lb-created-for-daily-jams' });
+  });
+
+  it('opens acquisition actions for an unowned recording without sending it to the player', async () => {
+    mockUseQuery.mockReturnValue({ data: [sampleTrack], isLoading: false });
+    const view = await renderWithStore(<LBCreatedForSection sectionKey="mix" mixType="daily-jams" />);
+    await fireEvent.press(view.getByText('Song One'));
+    expect(mockOpenOptions).toHaveBeenCalledWith(sampleTrack);
+    expect(mockPlaySongs).not.toHaveBeenCalled();
+  });
+
+  it('shares the same query across mix types', async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    await renderWithStore(<>
+      <LBCreatedForSection sectionKey="daily" mixType="daily-jams" />
+      <LBCreatedForSection sectionKey="weekly" mixType="weekly-jams" />
+    </>);
+    const [daily, weekly] = mockUseQuery.mock.calls.map(call => call[0]);
+    expect(daily.queryKey).toEqual(weekly.queryKey);
+    expect(daily.select([{ mixType: 'weekly-jams', tracks: [sampleTrack] }])).toEqual([]);
+    expect(weekly.select([{ mixType: 'weekly-jams', tracks: [sampleTrack] }])).toEqual([sampleTrack]);
   });
 
   it('renders a shelf with the mix tracks once loaded', async () => {

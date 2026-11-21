@@ -16,6 +16,8 @@ import { makeLocalId } from '@/domain/identity/LocalId';
 import { integrationProvenance } from '@/domain/identity/Provenance';
 import shuffleArray from '@/features/playback/shuffleArray';
 import { isSourceAvailable, type SourceUseId } from './sources';
+import { uniqueNameMatch } from '@/domain/identity/catalogueMatch';
+import { normalizeName } from '@/domain/identity/matching';
 
 /** The switch each of these reads. */
 export const PREVIEWS_USE: SourceUseId = 'deezer.previews';
@@ -85,26 +87,22 @@ async function similarArtistNames(name: string, sources: SimilarArtistSources): 
 export async function fetchAlbumPreviews(album: Album, songs: Song[]): Promise<Record<string, string>> {
   const embedded: Record<string, string> = {};
   for (const song of songs) {
-    if (song.streamId) embedded[song.nativeId] = song.streamId;
+    if (song.contentKind === 'preview' && song.streamId) embedded[song.nativeId] = song.streamId;
   }
-  if (Object.keys(embedded).length > 0) return embedded;
+  if (songs.every(song => song.provenance.origin === 'server' || embedded[song.nativeId])) return embedded;
 
   const catalogueTracks = await deezer.searchAlbumPreviews(album.artist.name, album.title);
-  if (!catalogueTracks.length) return {};
-
-  const byPosition: Record<number, string> = {};
-  const byTitle: Record<string, string> = {};
-  for (const track of catalogueTracks) {
-    if (track.preview) {
-      byPosition[track.track_position] = track.preview;
-      byTitle[track.title.toLowerCase().trim()] = track.preview;
-    }
-  }
-
-  const result: Record<string, string> = {};
-  songs.forEach((song, index) => {
-    const url = byPosition[index + 1] ?? byTitle[song.title.toLowerCase().trim()];
-    if (url) result[song.nativeId] = url;
+  const result = { ...embedded };
+  songs.forEach(song => {
+    if (result[song.nativeId] || song.provenance.origin === 'server') return;
+    const matches = catalogueTracks.filter(track =>
+      normalizeName(track.title) === normalizeName(song.title)
+      && (!track.duration || !song.durationSeconds || Math.abs(track.duration - song.durationSeconds) <= 3)
+      && (!track.disk_number || !song.discNumber || track.disk_number === song.discNumber)
+    );
+    const positioned = matches.filter(track => track.track_position === song.trackNumber);
+    const match = matches.length === 1 ? matches[0] : positioned.length === 1 ? positioned[0] : null;
+    if (match?.preview) result[song.nativeId] = match.preview;
   });
   return result;
 }
@@ -154,7 +152,8 @@ export async function fetchSimilarArtistsFromScrobbles(
 
 /** An artist's MusicBrainz id, looked up by name, or null when nothing matches. */
 export async function lookupArtistId(name: string): Promise<string | null> {
-  const [match] = await currentMusicbrainzClient().searchArtist(name, 1);
+  const candidates = await currentMusicbrainzClient().searchArtist(name, 5);
+  const match = uniqueNameMatch(candidates, name, artist => artist.name);
   return match?.id ?? null;
 }
 
@@ -184,9 +183,9 @@ export async function fetchPlaylistRecommendations(
   if (!artistNames.length) return [];
 
   try {
-    const similarResults = await Promise.all(
-      artistNames.map(name => similarArtistNames(name, sources))
-    );
+    const similarResults = (await Promise.allSettled(
+      artistNames.slice(0, 3).map(name => similarArtistNames(name, sources))
+    )).flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
 
     const seen = new Set<string>(artistNames.map(n => n.toLowerCase()));
     const candidates: string[] = [];
@@ -201,16 +200,17 @@ export async function fetchPlaylistRecommendations(
       }
     }
 
-    const trackGroupResults = await Promise.allSettled(
-      shuffleArray(candidates).map(async name => {
+    const ordered = shuffleArray(candidates);
+    const trackGroups: Song[][] = [];
+    const enough = () => new Set(trackGroups.flat().map(track => track.nativeId)).size >= PLAYLIST_RECOMMENDATION_COUNT;
+    for (let offset = 0; offset < ordered.length && !enough(); offset += 4) {
+      const batch = await Promise.allSettled(ordered.slice(offset, offset + 4).map(async name => {
         const artist = await deezer.resolveDeezerArtistByName(name);
         if (!artist) return [] as Song[];
         return deezer.getDeezerArtistTopTracks(artist.nativeId, 2);
-      })
-    );
-    const trackGroups = trackGroupResults
-      .filter((r): r is PromiseFulfilledResult<Song[]> => r.status === 'fulfilled')
-      .map(r => r.value);
+      }));
+      trackGroups.push(...batch.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+    }
 
     const seenIds = new Set<string>();
     const tracks: Song[] = [];

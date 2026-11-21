@@ -1335,6 +1335,10 @@
           "BAD_RESPONSE": "そのアドレスは SoulSync の応答を返しませんでした。URL を確認してください。",
           "HTTP_ERROR": "SoulSync に接続できません。サーバーを確認して再試行してください。",
           "NOT_AVAILABLE": "SoulSync に Soulseek 接続が設定されていません。",
+          "INSUFFICIENT_SCOPE": "この SoulSync API キーにはダウンロードの閲覧権限しかありません。書き込み権限のあるキーを使用してください。",
+          "not_found": "SoulSync は Soulseek で一致する曲を見つけられませんでした。",
+          "failed": "SoulSync は曲の検索を完了できませんでした。",
+          "unconfirmed": "SoulSync はリクエストを受け付けましたが、結果を確認できません。再試行する前に SoulSync を確認してください。",
           "no_tracks": "このアルバムのリクエストする曲を取得できませんでした。",
           "some_tracks_failed": "このアルバムの一部の曲を SoulSync にリクエストできませんでした。"
         }

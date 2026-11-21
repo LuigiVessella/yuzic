@@ -3,6 +3,11 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 import GetReviewSheet from './GetReviewSheet';
 import type { Album } from '@/domain/entities/Album';
+import type { ExternalAlbumStatus } from '@/features/downloaders/useExternalAlbumStatus';
+
+let mockAlbumStatus: ExternalAlbumStatus = { kind: 'none' };
+jest.mock('@/features/downloaders/useExternalAlbumStatus', () => ({ useExternalAlbumStatus: () => mockAlbumStatus }));
+afterEach(() => { mockAlbumStatus = { kind: 'none' }; });
 
 jest.mock('@gorhom/bottom-sheet', () => require('@gorhom/bottom-sheet/mock'));
 
@@ -199,6 +204,14 @@ describe('GetReviewSheet', () => {
   it('shows a Requesting line with the title/artist being asked for', async () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
     expect(view.getByText(/External Album — External Artist/)).toBeTruthy();
+  });
+
+  it('blocks another request while a previously opened review is already queued', async () => {
+    mockState.downloaders.defaultsByServer['server-1'] = { defaultAlbumProvider: 'slskd' };
+    mockAlbumStatus = { kind: 'queued', source: 'slskd' };
+    const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
+    await fireEvent.press(view.getByText('wants.status.queued'));
+    expect(slskdDownloadAlbum).not.toHaveBeenCalled();
   });
 
   it('does not preselect any provider and starts no job when there is no saved default', async () => {

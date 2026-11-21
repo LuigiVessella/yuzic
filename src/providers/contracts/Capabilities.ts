@@ -76,7 +76,8 @@ export interface CapabilityMap {
    */
   'catalogue.search': (
     query: string,
-    kinds: CatalogueSearchKinds
+    kinds: CatalogueSearchKinds,
+    signal?: AbortSignal,
   ) => Promise<CatalogueSearchResults>;
 }
 

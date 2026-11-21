@@ -16,6 +16,7 @@ concurrency: android-build
 jobs:
   build-android:
     name: Build Android
+    if: github.repository == 'yuzicapp/yuzic'
     runs-on: ubuntu-latest
     outputs:
       # The code Play actually gave this build; see the iOS workflow.

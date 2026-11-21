@@ -24,6 +24,13 @@ const album = (
 
 const nameKeyOf = (a: Album): NameKey => ({ primary: a.title, secondary: a.artist });
 
+it('does not turn known conflicting release-group ids into a name match', () => {
+  const subject = { externalIds: { mbid: 'group-a', mbidType: 'release-group' as const }, nameKey: { primary: 'Album', secondary: 'Artist' } };
+  expect(findMatch(subject, [album('b', 'Album', 'Artist', { mbid: 'group-b', mbidType: 'release-group' })], nameKeyOf)).toBeNull();
+  // An edition and its group may still be related by names when no crosswalk is available.
+  expect(findMatch(subject, [album('b', 'Album', 'Artist', { mbid: 'edition', mbidType: 'release' })], nameKeyOf)?.confidence).toBe('heuristic');
+});
+
 describe('sharedIdentifier', () => {
   it('finds an mbid match when both sides agree', () => {
     expect(sharedIdentifier({ mbid: 'm1' }, { mbid: 'm1' })).toBe('mbid');

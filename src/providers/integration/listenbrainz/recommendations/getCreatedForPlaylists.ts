@@ -99,15 +99,14 @@ function mapTrack(track: JspfTrack): Song | null {
     externalIds: mbid ? { mbid } : {},
     title: track.title,
     artist: {
-      localId: makeLocalId('artist', PROVENANCE, track.creator),
-      // No artist id in a JSPF track entry — only its display name.
-      nativeId: '',
-      externalIds: {},
+      localId: makeLocalId('artist', PROVENANCE, leadMbid ?? `unresolved:${nativeId}`),
+      nativeId: leadMbid ?? '',
+      externalIds: leadMbid ? { mbid: leadMbid } : {},
       name: track.creator,
       cover: missingCover(artistCoverSubject(track.creator, leadMbid ? { mbid: leadMbid } : {})),
     },
     album: {
-      localId: makeLocalId('album', PROVENANCE, track.album ?? ''),
+      localId: makeLocalId('album', PROVENANCE, releaseMbid ?? `unresolved:${nativeId}`),
       // Same — JSPF names the album, not its id.
       nativeId: '',
       externalIds: albumIds,

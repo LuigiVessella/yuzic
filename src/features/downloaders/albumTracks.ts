@@ -9,6 +9,7 @@ import { ALL_SOURCES } from '@/features/sources/registry';
 import { QueryKeys } from '@/state/query/queryKeys';
 import { staleTime } from '@/state/query/staleTime';
 import { selectActiveServerId } from '@/state/redux/selectors/serversSelectors';
+import { selectSourceServerUrls } from '@/features/settings/sources/state';
 
 /** A catalogue album's track list changes about as often as the album does. */
 const CATALOGUE_ALBUM_STALE_MS = 1000 * 60 * 60 * 24;
@@ -26,13 +27,14 @@ export function useAlbumTrackLoader(): (album: Album) => Promise<{ title: string
   const api = useApi();
   const queryClient = useQueryClient();
   const serverId = useSelector(selectActiveServerId);
+  const sourceUrls = useSelector(selectSourceServerUrls);
 
   return useCallback(async (album: Album) => {
     let detail: AlbumDetail | null;
     if (album.provenance.origin === 'integration') {
       const providerId = album.provenance.providerId;
       detail = await queryClient.fetchQuery({
-        queryKey: [QueryKeys.ExternalAlbum, providerId, album.nativeId, 'tracks'],
+        queryKey: [QueryKeys.ExternalAlbum, providerId, album.nativeId, 'tracks', sourceUrls],
         queryFn: async () => (await ALL_SOURCES.find(source => source.id === providerId)?.fetchAlbum(album.nativeId)) ?? null,
         staleTime: CATALOGUE_ALBUM_STALE_MS,
       });
@@ -47,5 +49,5 @@ export function useAlbumTrackLoader(): (album: Album) => Promise<{ title: string
       title: song.title,
       artist: song.artist.name || album.artist.name,
     }));
-  }, [api, queryClient, serverId]);
+  }, [api, queryClient, serverId, sourceUrls]);
 }

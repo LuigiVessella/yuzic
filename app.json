@@ -3,7 +3,7 @@
     "name": "Yuzic",
     "slug": "yuzic",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/logo-fork-blue.png",
     "scheme": "yuzic",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -25,8 +25,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/splash.png",
-        "backgroundColor": "#1c1c1e"
+        "foregroundImage": "./assets/images/logo-fork-blue.png",
+        "backgroundColor": "#2563EB"
       },
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS"

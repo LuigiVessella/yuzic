@@ -21,6 +21,8 @@ concurrency: release-on-version-bump
 jobs:
   detect-version-bump:
     name: Detect version bump
+    # Store publishing belongs to upstream. Personal fork APKs have their own workflow.
+    if: github.repository == 'yuzicapp/yuzic'
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.check.outputs.changed }}

@@ -20,9 +20,9 @@ export class DeezerApiError extends Error {
 
 type DeezerErrorBody = { error?: { code?: number; message?: string } };
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return limit(async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}${path}`);
+    const res = await fetchWithTimeout(`${BASE_URL}${path}`, signal ? { signal } : undefined);
     if (!res.ok) throw new Error(`Deezer API error (${res.status})`);
     const body = (await res.json()) as T & DeezerErrorBody;
     // Over quota (code 4) and bad parameters both arrive as 200 OK. Returned
@@ -31,7 +31,7 @@ async function request<T>(path: string): Promise<T> {
       throw new DeezerApiError(body.error.code, body.error.message);
     }
     return body as T;
-  });
+  }, signal);
 }
 
 export const deezerClient = { request };

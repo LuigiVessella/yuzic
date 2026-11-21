@@ -162,4 +162,50 @@ describe('downloaders as providers', () => {
     (soulsync.testConnection as jest.Mock).mockResolvedValue(false);
     await expect(by('soulsync').testConnection(config)).resolves.toEqual({ ok: false });
   });
+
+  it('logs only the SoulSync request code and status on a failed track request', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetch = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => JSON.stringify({
+        success: false,
+        data: null,
+        error: { code: 'NOT_AVAILABLE', message: 'Sensitive server detail' },
+      }),
+    } as Response);
+
+    try {
+      await expect(by('soulsync').downloadTrack!(config, { title: 'Track title', artist: 'Artist name' }))
+        .resolves.toMatchObject({ success: false, code: 'NOT_AVAILABLE' });
+
+      expect(warn).toHaveBeenCalledWith('[SoulSync] Track request failed', {
+        code: 'NOT_AVAILABLE',
+        status: 503,
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('Sensitive server detail');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('Track title');
+    } finally {
+      fetch.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  it('does not report a queued SoulSync search as a successful download', async () => {
+    const fetch = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true, status: 202,
+        text: async () => JSON.stringify({ success: true, data: { request_id: 'req-1', status: 'queued' }, error: null }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true, status: 200,
+        text: async () => JSON.stringify({ success: true, data: { status: 'not_found' }, error: null }),
+      } as Response);
+    try {
+      await expect(by('soulsync').downloadTrack!(config, { title: 'Lontano', artist: 'Sfera Ebbasta' }))
+        .resolves.toMatchObject({ success: false, code: 'not_found' });
+    } finally {
+      fetch.mockRestore();
+    }
+  });
 });

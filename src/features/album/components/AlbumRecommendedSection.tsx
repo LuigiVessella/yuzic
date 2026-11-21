@@ -7,7 +7,7 @@ import { useSelector } from 'react-redux'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/features/theme/useTheme'
-import { useArtists } from '@/features/artist/useArtists';
+import { useLocalFirst } from '@/features/library/useLocalFirst';
 import { useSourceUse } from '@/features/settings/sources/useSourceUse'
 import { selectShowSourceHeaders } from '@/features/settings/appearance/state';
 import { useMatchedNavigation } from '@/features/sources/useMatchedNavigation'
@@ -38,19 +38,14 @@ export default function AlbumRecommendedSection({ artistName, excludeAlbumId }: 
   const { width: screenWidth } = useWindowDimensions()
   const enabled = useSourceUse(CATALOGUE_RECOMMENDATIONS_USE)
   const showSourceHeaders = useSelector(selectShowSourceHeaders)
-  const { artists } = useArtists()
+  const { localAlbum } = useLocalFirst()
   const { navigateToAlbum } = useMatchedNavigation()
 
   const tileWidth = shelfItemWidth(screenWidth)
 
-  const libraryArtistNames = useMemo(
-    () => new Set(artists.map(a => a.name.toLowerCase())),
-    [artists]
-  )
-
   const { data: albums = [] } = useQuery<Album[]>({
     queryKey: [QueryKeys.ExploreBecauseYouListened, 'album-rec', artistName],
-    queryFn: () => fetchAlbumsLikeArtist(artistName, libraryArtistNames, {
+    queryFn: () => fetchAlbumsLikeArtist(artistName, {
       relatedLimit: ALBUM_RECOMMENDATION_RELATED_LIMIT,
       targetAlbums: ALBUM_RECOMMENDATION_TARGET_ALBUMS,
     }),
@@ -59,7 +54,7 @@ export default function AlbumRecommendedSection({ artistName, excludeAlbumId }: 
     networkMode: 'online',
   })
 
-  const filtered = useMemo(() => albums.filter(a => a.nativeId !== excludeAlbumId), [albums, excludeAlbumId])
+  const filtered = useMemo(() => albums.filter(a => a.nativeId !== excludeAlbumId && !localAlbum(a)).slice(0, ALBUM_RECOMMENDATION_TARGET_ALBUMS), [albums, excludeAlbumId, localAlbum])
   const covers = useMemo(() => filtered.map(a => a.cover), [filtered])
   usePrefetchCovers(covers, 'grid')
 

@@ -88,8 +88,10 @@ export function useArtistScreenModel(params: ArtistRouteParams): ArtistScreenMod
 
   const localAlbums = useArtistAlbums(isLocal ? (artist?.nativeId ?? '') : '');
   const { data: externalDiscography } = useArtistExternalDiscography(
-    isLocal ? (artist?.name ?? null) : null,
-    isLocal && !!artist
+    artist?.name ?? null,
+    !!artist,
+    artist?.externalIds,
+    isLocal ? undefined : artist?.provenance.origin === 'integration' ? artist.provenance.providerId : source,
   );
 
   const songCountByAlbumId = useMemo(() => {
@@ -107,7 +109,7 @@ export function useArtistScreenModel(params: ArtistRouteParams): ArtistScreenMod
     // empty library sorts them the same way `classifyDiscography` sorts
     // everything else, without a second sort implementation.
     const ext = external.data;
-    const classified = classifyDiscography([], new Map(), { albums: ext?.albums ?? [], singles: ext?.singles ?? [] });
+    const classified = classifyDiscography([], new Map(), externalDiscography ?? { albums: ext?.albums ?? [], singles: ext?.singles ?? [] });
     return {
       ownedAlbums: [],
       ownedSingles: [],
@@ -122,9 +124,9 @@ export function useArtistScreenModel(params: ArtistRouteParams): ArtistScreenMod
   );
 
   const counts = useMemo(() => ({
-    albums: isLocal ? localAlbums.length : (external.data ? external.data.albums.length + external.data.singles.length : 0),
+    albums: isLocal ? localAlbums.length : discography.unownedAlbums.length + discography.unownedSingles.length,
     songs: isLocal ? artistTrackIds : 0,
-  }), [isLocal, localAlbums.length, external.data, artistTrackIds]);
+  }), [isLocal, localAlbums.length, discography, artistTrackIds]);
 
   const topTracks = isLocal ? [] : (external.data?.topTracks ?? []);
   const similarArtists = isLocal ? [] : (external.data?.similarArtists ?? []);

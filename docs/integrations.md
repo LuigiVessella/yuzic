@@ -524,10 +524,21 @@ with the same `User-Agent`.
 | Endpoint | Used for |
 | --- | --- |
 | `GET /artist?query=` | Resolving an artist by name |
-| `GET /artist/{mbid}?inc=release-groups` | External artist page + discography |
+| `GET /artist/{mbid}?inc=release-groups` | External artist page + initial discography |
+| `GET /release-group?artist={mbid}&inc=artist-credits&limit=25&offset=` | Progressive discography, including releases beyond the lookup's 25-item limit |
 | `GET /release-group?query=` | Resolving an album by artist + title (never to find a cover) |
 | `GET /release-group/{mbid}?inc=artist-credits` | External album page |
-| `GET /release?release-group={mbid}&inc=recordings+artist-credits` | Track list for an album |
+| `GET /release?release-group={mbid}&status=official&inc=media&limit=100` | Bounded edition metadata for choosing a representative track list |
+| `GET /release/{mbid}?inc=release-groups+recordings+artist-credits` | Selected edition's tracks; resolving a release id to the release-group Lidarr expects |
+
+Discography pages are published as they arrive. Deezer artist albums use
+`index`/`limit` pagination too, and album tracks continue beyond the embedded
+first page. Name-only automatic resolution accepts only a unique exact
+normalized artist/title match; ambiguous candidates stay in the picker.
+MusicBrainz track lists choose the earliest dated candidate among the first
+100 official editions, preferring physical media on a date tie, then id.
+Only the selected edition's recording list is fetched; disc numbers survive.
+Preview matching checks title, duration and disc before using track position.
 
 Cover art comes from `https://coverartarchive.org/release-group/{mbid}/front-500`,
 built as a URL rather than requested by us — for a MusicBrainz album that is
@@ -614,8 +625,11 @@ No auth, `User-Agent` identifies the app. `src/providers/integration/lrclib/`.
 | `DELETE /transfers/downloads/{username}/{fileId}?remove=false` then `?remove=true` | Cancelling — the first call is allowed to fail, since a file that already finished can't be cancelled |
 
 slskd downloads also reach MusicBrainz (`src/providers/integration/slskd/mb/canonicalize.ts`) to
-turn an MBID into a canonical artist/album/track list before matching filenames
-against it.
+turn a typed release or release-group MBID into canonical artist/album strings
+before matching filenames. The app injects its chosen MusicBrainz client, so
+this lookup respects the configured metadata server. Lidarr requests convert
+release ids to release-group ids before matching `foreignAlbumId`; a failed
+conversion does not silently send an edition id as an album id.
 
 ### SoulSync — your instance, `/api/v1`
 
@@ -628,8 +642,9 @@ the HTTP status says; the client unwraps it so callers see `data` or an Error.
 
 | Endpoint | Used for |
 | --- | --- |
-| `GET /downloads?limit=1` | Connection test — SoulSync has no dedicated status endpoint, so the queue read doubles as one |
-| `POST /request` | Requesting a track. One free-text query; SoulSync runs its own search-match-download pipeline behind it |
+| `GET /downloads?limit=1` | Connection test — verifies address, key, and read access; request permission is checked by SoulSync on `POST /request` |
+| `POST /request` | Requesting a track. Returns 202 and a request id when the search is queued, before a download exists |
+| `GET /request/{requestId}` | Checking whether that search found a transfer, found nothing, failed, or remains unresolved |
 | `GET /downloads?limit=100` | The in-app transfer queue, and spotting finished items |
 | `POST /downloads/{id}/cancel` | Cancelling — takes the peer username in the body, since a transfer is addressed by id *and* peer |
 
@@ -640,6 +655,27 @@ the album's tracks, each its own `POST /request`, one after another
 (`features/downloaders/albumByTracks.ts`); the tracks come from the album's
 catalogue source or the server (`albumTracks.ts`), so any album sheet can offer
 it.
+Yuzic checks each request until SoulSync reports a transfer or a terminal failure;
+an accepted search is not shown as a successful download. If SoulSync has not
+confirmed an outcome after 90 seconds, Yuzic reports that the request remains
+unconfirmed rather than inviting an immediate duplicate request.
+SoulSync's public `POST /api/v1/request` calls its download orchestrator. In
+`hybrid` mode its search tries the configured sources in order (for example
+Soulseek, then YouTube when Soulseek returns no tracks); in `soulseek` mode it
+searches only Soulseek. A log line `Searching Soulseek` rather than `Hybrid
+search (...)` indicates the latter path. The request endpoint selects one
+candidate after search, so its fallback is less complete than the wishlist
+worker's retry pipeline if a found candidate is later rejected or fails.
+Its `completed` status describes the source transfer into SoulSync's downloads
+directory; this endpoint does not create a library-import batch, so it does not
+by itself make the file appear in SoulSync's Downloads page or in Jellyfin/Yuzic.
+SoulSync's `/api/v1/downloads` and Downloads page list batch tasks, which this
+request endpoint does not create.
+SoulSync's separate Auto Import worker scans its configured Staging folder,
+not the Downloads folder used by `/request` unless those paths are explicitly
+configured to coincide.
+The public `POST /api/v1/wishlist/process` retries the entire wishlist, not
+one requested track, and is therefore not used as a substitute.
 
 ### Downtify — your instance, `/api`
 

@@ -105,6 +105,7 @@
     "react-redux": "^9.2.0",
     "reanimated-color-picker": "^4.2.0",
     "redux-persist": "^6.0.0",
+    "typescript": "^5.9.2",
     "yuzic-engine": "1.2.5"
   },
   "devDependencies": {
@@ -123,8 +124,7 @@
     "madge": "8.0.0",
     "react-native-svg-transformer": "^1.5.1",
     "test-renderer": "^1.2.0",
-    "ts-prune": "0.10.3",
-    "typescript": "^5.9.2"
+    "ts-prune": "0.10.3"
   },
   "expo": {
     "install": {

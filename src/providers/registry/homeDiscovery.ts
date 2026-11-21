@@ -16,9 +16,9 @@ import { sourceColor } from '@/constants/design';
 import type { Album } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
 import { artistCoverSubject, missingCover } from '@/domain/entities/Cover';
-import type { Song } from '@/domain/entities/Song';
 import { makeLocalId } from '@/domain/identity/LocalId';
 import { integrationProvenance } from '@/domain/identity/Provenance';
+import seededShuffle from '@/features/playlist/seededShuffle';
 import { HOME_GENRE_ARTIST_LIMIT, HOME_RELATED_PER_SEED, HOME_SEED_ARTISTS } from '@/features/home/constants';
 import {
   buildCatalogueSections,
@@ -37,6 +37,7 @@ export const selectListenersAccountName = selectListenBrainzUsername;
 
 /** The switch a shelf of each kind reads. */
 export const CATALOGUE_HOME_USE: SourceUseId = 'deezer.homeShelves';
+export const refreshCatalogueDiscovery = deezer.refreshDeezerDiscovery;
 export const CATALOGUE_RECOMMENDATIONS_USE: SourceUseId = 'deezer.recommendations';
 export const LISTENERS_HOME_USE: SourceUseId = 'listenbrainz.homeShelves';
 export const LISTENERS_SIMILAR_USE: SourceUseId = 'listenbrainz.similarArtists';
@@ -91,12 +92,13 @@ type CollectCoveredAlbumsOptions = {
   albumsPerArtist?: number;
   artistBatchSize?: number;
   excludeAlbumIds?: Iterable<string>;
+  rotationSeed?: number;
 };
 
-/** One album with a cover per artist, batch by batch, until there are enough. */
+/** A small selection per artist, batch by batch, until there are enough candidates. */
 async function collectCoveredAlbumsForArtists(
   artists: Artist[],
-  { targetAlbums, albumsPerArtist = 5, artistBatchSize = 4, excludeAlbumIds = [] }: CollectCoveredAlbumsOptions
+  { targetAlbums, albumsPerArtist = 5, artistBatchSize = 4, excludeAlbumIds = [], rotationSeed = 0 }: CollectCoveredAlbumsOptions
 ): Promise<Album[]> {
   if (targetAlbums <= 0) return [];
 
@@ -107,32 +109,34 @@ async function collectCoveredAlbumsForArtists(
     const results = await Promise.allSettled(
       artists.slice(i, i + artistBatchSize).map(async artist => {
         const artistAlbums = await deezer.getDeezerArtistAlbums(artist.nativeId, albumsPerArtist, artist);
-        return artistAlbums.find(a => a.cover.kind !== 'none') ?? null;
+        return seededShuffle(artistAlbums.filter(a => a.cover.kind !== 'none'), rotationSeed / 2 ** 31).slice(0, 2);
       })
     );
 
     for (const result of results) {
-      if (albums.length >= targetAlbums) break;
-      if (result.status !== 'fulfilled' || !result.value || seenAlbums.has(result.value.nativeId)) continue;
-      seenAlbums.add(result.value.nativeId);
-      albums.push(result.value);
+      if (result.status !== 'fulfilled') continue;
+      for (const album of result.value) {
+        if (albums.length >= targetAlbums) break;
+        if (seenAlbums.has(album.nativeId)) continue;
+        seenAlbums.add(album.nativeId);
+        albums.push(album);
+      }
     }
   }
 
   return albums;
 }
 
-/** Albums by artists related to one, leaving out artists already in the library. */
+/** Albums by a seed and related artists; library exclusion is applied by the caller. */
 export async function fetchAlbumsLikeArtist(
   artistName: string,
-  libraryArtistNames: Set<string>,
-  { relatedLimit, targetAlbums }: { relatedLimit: number; targetAlbums: number }
+  { relatedLimit, targetAlbums, rotationSeed = 0 }: { relatedLimit: number; targetAlbums: number; rotationSeed?: number }
 ): Promise<Album[]> {
   const seed = await deezer.resolveDeezerArtistByName(artistName);
   if (!seed) return [];
   const related = await deezer.getDeezerRelatedArtists(seed.nativeId, relatedLimit);
-  const fresh = related.filter(artist => !libraryArtistNames.has(artist.name.toLowerCase()));
-  return collectCoveredAlbumsForArtists(fresh, { targetAlbums });
+  // Keep familiar artists eligible: the caller excludes owned albums, not artists.
+  return collectCoveredAlbumsForArtists([seed, ...seededShuffle(related, rotationSeed / 2 ** 31)], { targetAlbums: targetAlbums * 2, rotationSeed });
 }
 
 function normalize(s: string): string {
@@ -163,8 +167,8 @@ function findCatalogueGenreId(libraryGenre: string, genres: { id: number; name: 
 export async function fetchAlbumsForGenre(
   genre: string,
   seedArtistNames: string[],
-  libraryArtistNames: Set<string>,
-  itemCount: number
+  itemCount: number,
+  rotationSeed = 0,
 ): Promise<Album[]> {
   const albums: Album[] = [];
   if (seedArtistNames.length > 0) {
@@ -183,12 +187,12 @@ export async function fetchAlbumsForGenre(
       .flatMap(result => result.status === 'fulfilled' ? result.value : [])
       .filter(artist => {
         const nameKey = artist.name.toLowerCase();
-        if (libraryArtistNames.has(nameKey) || seenArtists.has(nameKey)) return false;
+        if (seenArtists.has(nameKey)) return false;
         seenArtists.add(nameKey);
         return true;
       });
 
-    albums.push(...await collectCoveredAlbumsForArtists(relatedArtists, { targetAlbums: itemCount }));
+    albums.push(...await collectCoveredAlbumsForArtists(seededShuffle(relatedArtists, rotationSeed / 2 ** 31), { targetAlbums: itemCount, rotationSeed }));
   }
 
   if (albums.length >= itemCount) return albums;
@@ -198,11 +202,12 @@ export async function fetchAlbumsForGenre(
   if (!genreId) return albums;
 
   const artists = await deezer.getDeezerArtistsByGenreId(genreId, HOME_GENRE_ARTIST_LIMIT);
-  const fresh = artists.filter(a => !libraryArtistNames.has(a.name.toLowerCase()));
+  const fresh = artists;
 
   albums.push(...await collectCoveredAlbumsForArtists(fresh, {
     targetAlbums: itemCount - albums.length,
     excludeAlbumIds: albums.map(album => album.nativeId),
+    rotationSeed,
   }));
   return albums.slice(0, itemCount);
 }
@@ -238,7 +243,4 @@ export async function fetchSimilarArtistsFromListeners(
 }
 
 /** One of the account's made-for-you mixes, or no tracks if it has none. */
-export async function fetchMadeForYouMix(username: string, mixType: CreatedForMixType): Promise<Song[]> {
-  const mixes = await getCreatedForPlaylists(username);
-  return mixes.find(mix => mix.mixType === mixType)?.tracks ?? [];
-}
+export const fetchMadeForYouMixes = getCreatedForPlaylists;

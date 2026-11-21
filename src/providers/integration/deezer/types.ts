@@ -42,6 +42,8 @@ export type DeezerTrack = {
   preview?: string | null;
   isrc?: string | null;
   rank?: number;
+  track_position?: number;
+  disk_number?: number;
   artist?: DeezerArtist;
   album?: DeezerAlbum;
 };
@@ -55,6 +57,7 @@ export type DeezerPreviewTrack = {
   id: number;
   title: string;
   track_position: number;
+  disk_number?: number;
   preview: string;
   duration: number;
 };

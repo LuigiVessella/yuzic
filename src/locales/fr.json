@@ -1340,6 +1340,10 @@
           "BAD_RESPONSE": "Cette adresse n’a pas répondu comme SoulSync. Vérifiez l’URL.",
           "HTTP_ERROR": "Impossible de joindre SoulSync. Vérifiez le serveur et réessayez.",
           "NOT_AVAILABLE": "SoulSync n’a aucune connexion Soulseek configurée.",
+          "INSUFFICIENT_SCOPE": "Cette clé API SoulSync peut lire les téléchargements mais pas en demander. Utilisez une clé avec accès en écriture.",
+          "not_found": "SoulSync n’a trouvé aucun morceau correspondant sur Soulseek.",
+          "failed": "SoulSync n’a pas pu terminer la recherche du morceau.",
+          "unconfirmed": "SoulSync a accepté la demande, mais son résultat reste inconnu. Vérifiez SoulSync avant de réessayer.",
           "no_tracks": "Impossible de lister les morceaux de cet album à demander.",
           "some_tracks_failed": "Certains morceaux de cet album n’ont pas pu être demandés à SoulSync."
         }

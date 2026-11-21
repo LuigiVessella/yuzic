@@ -22,6 +22,7 @@ concurrency: ios-build
 jobs:
   build-ios:
     name: Build iOS
+    if: github.repository == 'yuzicapp/yuzic'
     runs-on: macos-26
     outputs:
       # The number App Store Connect actually gave this build, so the release

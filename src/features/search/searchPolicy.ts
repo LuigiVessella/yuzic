@@ -183,7 +183,8 @@ export async function searchServerLeg(searchApi: ServerSearchApi, query: string,
 export async function searchExternalLeg(
   sourceIds: string[],
   query: string,
-  entityTypes: SearchEntityType[]
+  entityTypes: SearchEntityType[],
+  signal?: AbortSignal,
 ): Promise<SearchResult[]> {
   if (!query.trim() || sourceIds.length === 0) return [];
   const kinds = {
@@ -211,7 +212,7 @@ export async function searchExternalLeg(
   const settled = await Promise.allSettled(
     offers.map(async offer => ({
       providerId: offer.providerId,
-      found: await offer.invoke(query, kinds),
+      found: await offer.invoke(query, kinds, signal),
     }))
   );
   const perProvider = settled.flatMap(outcome => (outcome.status === 'fulfilled' ? [outcome.value] : []));

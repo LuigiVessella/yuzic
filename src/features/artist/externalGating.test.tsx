@@ -99,7 +99,7 @@ describe('external metadata gating', () => {
       { wrapper: wrapperFor(store) }
     )
 
-    expect(searchArtist).toHaveBeenCalledWith('Boards of Canada', 1)
+    expect(searchArtist).toHaveBeenCalledWith('Boards of Canada', 5)
   })
 
   it('asks a busy MusicBrainz again, but takes any other failure as final', async () => {
@@ -125,7 +125,7 @@ describe('external metadata gating', () => {
       { wrapper: wrapperFor(store) }
     )
 
-    expect(searchArtist).toHaveBeenCalledWith('Boards of Canada', 1)
+    expect(searchArtist).toHaveBeenCalledWith('Boards of Canada', 5)
   })
 
   it('does not look up even an allowed id while the feature itself is off', async () => {

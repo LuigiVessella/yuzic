@@ -6,6 +6,7 @@ import React, {
   useCallback,
   ReactNode,
   useRef,
+  useEffect,
 } from 'react';
 
 import { useAlbums } from '@/features/album/useAlbums';
@@ -147,6 +148,8 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   const [degraded, setDegraded] = useState(false);
 
   const searchRequestIdRef = useRef(0);
+  const externalAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => externalAbortRef.current?.abort(), []);
 
   // Pre-compute lowercased strings once when library data changes, not on every keystroke.
   // With 9000 tracks this avoids 18,000 toLowerCase() calls per search query.
@@ -158,6 +161,7 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   }), [tracks, albums, artists, playlists]);
 
   const clearSearch = useCallback(() => {
+    externalAbortRef.current?.abort();
     searchRequestIdRef.current += 1;
     setSearchResults([]);
     setIsLoading(false);
@@ -166,6 +170,9 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   }, []);
 
   const handleSearchWithFilters = useCallback(async (query: string, filters: SearchFilters) => {
+    externalAbortRef.current?.abort();
+    const controller = new AbortController();
+    externalAbortRef.current = controller;
     const requestId = ++searchRequestIdRef.current;
     if (!query.trim()) {
       setSearchResults([]);
@@ -211,7 +218,7 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
       if (requestId !== searchRequestIdRef.current) return;
 
       if (legs.externalSources.length > 0) {
-        try { results.push(...await searchExternalLeg(legs.externalSources, query, entityTypes)); } catch { errored = true; }
+        try { results.push(...await searchExternalLeg(legs.externalSources, query, entityTypes, controller.signal)); } catch { errored = true; }
       }
       if (requestId !== searchRequestIdRef.current) return;
 

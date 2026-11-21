@@ -1346,6 +1346,10 @@
           "BAD_RESPONSE": "That address didn't answer like SoulSync. Check the URL.",
           "HTTP_ERROR": "Could not reach SoulSync. Check the server and try again.",
           "NOT_AVAILABLE": "SoulSync has no Soulseek connection configured.",
+          "INSUFFICIENT_SCOPE": "This SoulSync API key can read downloads but cannot request them. Use a key with write access.",
+          "not_found": "SoulSync found no matching track on Soulseek.",
+          "failed": "SoulSync could not complete the track search.",
+          "unconfirmed": "SoulSync accepted the request, but its result is still unknown. Check SoulSync before retrying.",
           "no_tracks": "Couldn't list this album's songs to request.",
           "some_tracks_failed": "Some of this album's songs couldn't be requested from SoulSync."
         }

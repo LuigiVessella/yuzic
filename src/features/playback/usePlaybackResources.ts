@@ -68,6 +68,8 @@ export function usePlaybackResources() {
     if (!hasReissuableUrl(song.contentKind)) {
       return song.streamId ? { song, streamUrl: song.streamId } : null;
     }
+    // Catalogue recording ids cannot be sent to the active music server.
+    if (song.provenance.origin !== 'server') return null;
     // "Original" serves the untouched file, which the device may not be able
     // to decode at all; `playableQuality` transcodes those rather than fail.
     const quality = playableQuality({ mimeType: song.audio?.mimeType }, streamQuality.current);
