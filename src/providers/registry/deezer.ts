@@ -12,6 +12,7 @@ import {
   searchDeezerAlbums,
   searchDeezerTracks,
   getDeezerAlbum,
+  getDeezerTrack,
 } from '@/providers/integration/deezer';
 import { sourceColor } from '@/constants/design';
 import type { IntegrationProvider } from '../contracts/Provider';
@@ -42,6 +43,7 @@ export const deezerProvider: IntegrationProvider = {
       };
     },
     'catalogue.album': async nativeId => getDeezerAlbum(nativeId),
+    'catalogue.song': async nativeId => getDeezerTrack(nativeId),
   },
   // Keyless public API, reachable by construction — matches
   // `trivialTestConnection` in the source registry this replaces.

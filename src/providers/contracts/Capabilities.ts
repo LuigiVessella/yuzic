@@ -68,6 +68,8 @@ export interface CapabilityMap {
   'artist.enrich': (artist: Artist) => Promise<ArtistEnrichment | null>;
   /** Browse a catalogue this provider holds but the user does not own. */
   'catalogue.album': (nativeId: string) => Promise<AlbumDetail | null>;
+  /** Reopen a track selected from persisted search history. */
+  'catalogue.song': (nativeId: string) => Promise<Song | null>;
   /**
    * Free-text search of a catalogue the user does not own.
    *

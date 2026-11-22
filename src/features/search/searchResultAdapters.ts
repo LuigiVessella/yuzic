@@ -102,7 +102,7 @@ export function entityToAlbum(entity: SearchEntityEntry): Album {
   return externalAlbum({
     id: entity.id,
     title: entity.title,
-    artistName: entity.artistName ?? (entity.externalSource === 'musicbrainz' ? '' : entity.subtitle),
+    artistName: entity.artistName ?? (/^\d{4}$/.test(entity.subtitle) ? '' : entity.subtitle),
     cover: entity.cover,
     externalSource: entity.externalSource,
     externalIds: entity.externalIds,

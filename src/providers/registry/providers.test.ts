@@ -17,6 +17,7 @@ import { serverProvenance } from '@/domain/identity/Provenance';
 // outside the app's own transform pipeline.
 jest.mock('@/providers/integration/deezer', () => ({
   getDeezerAlbum: jest.fn(),
+  getDeezerTrack: jest.fn(),
   searchDeezerArtists: jest.fn(),
   searchDeezerAlbums: jest.fn(),
 }));
@@ -24,6 +25,7 @@ jest.mock('@/providers/integration/musicbrainz', () => ({
   searchArtist: jest.fn(),
   searchReleaseGroupByTitle: jest.fn(),
   getReleaseGroup: jest.fn(),
+  getRecording: jest.fn(),
   getTracksForReleaseGroup: jest.fn(),
   createMusicbrainzClient: jest.fn(),
 }));
@@ -36,6 +38,7 @@ jest.mock('@/state/redux/store', () => ({
 }));
 jest.mock('@/providers/integration/musicbrainz/mapAlbum', () => ({ mapAlbum: jest.fn() }));
 jest.mock('@/providers/integration/musicbrainz/mapSong', () => ({ mapSong: jest.fn() }));
+jest.mock('@/providers/integration/musicbrainz/mapRecording', () => ({ mapRecording: jest.fn() }));
 jest.mock('@/providers/integration/lastfm', () => ({ getLastFmArtistInfo: jest.fn() }));
 // Last.fm's api_key is a build-time env var, empty in the test environment —
 // fix it to a non-empty value so the provider's own "no key, no request"
@@ -50,6 +53,7 @@ import * as deezerApi from '@/providers/integration/deezer';
 import * as mbApi from '@/providers/integration/musicbrainz';
 import { mapAlbum as mapMbAlbum } from '@/providers/integration/musicbrainz/mapAlbum';
 import { mapSong as mapMbSong } from '@/providers/integration/musicbrainz/mapSong';
+import { mapRecording } from '@/providers/integration/musicbrainz/mapRecording';
 import * as lastfmApi from '@/providers/integration/lastfm';
 
 afterEach(() => {
@@ -124,6 +128,10 @@ describe('deezer provider', () => {
     await deezerProvider.capabilities['catalogue.album']?.('d-album');
     expect(deezerApi.getDeezerAlbum).toHaveBeenCalledWith('d-album');
 
+    (deezerApi.getDeezerTrack as jest.Mock).mockResolvedValue(makeSong());
+    expect(await deezerProvider.capabilities['catalogue.song']?.('d-track')).toEqual(makeSong());
+    expect(deezerApi.getDeezerTrack).toHaveBeenCalledWith('d-track');
+
     const found = await deezerProvider.capabilities['catalogue.search']?.('query', { songs: false, artists: true, albums: false });
     expect(deezerApi.searchDeezerArtists).toHaveBeenCalledWith('query', 4, undefined);
     expect(deezerApi.searchDeezerAlbums).not.toHaveBeenCalled();
@@ -153,6 +161,10 @@ describe('musicbrainz provider', () => {
     await musicbrainzProvider.capabilities['catalogue.album']?.('mb-rg');
     expect(mbApi.getReleaseGroup).toHaveBeenCalledWith('mb-rg');
     expect(mbApi.getTracksForReleaseGroup).toHaveBeenCalledWith('mb-rg');
+    (mbApi.getRecording as jest.Mock).mockResolvedValue({ id: 'mb-track' });
+    (mapRecording as jest.Mock).mockReturnValue(makeSong());
+    expect(await musicbrainzProvider.capabilities['catalogue.song']?.('mb-track')).toEqual(makeSong());
+    expect(mbApi.getRecording).toHaveBeenCalledWith('mb-track');
     expect(mbApi.createMusicbrainzClient).not.toHaveBeenCalled();
   });
 

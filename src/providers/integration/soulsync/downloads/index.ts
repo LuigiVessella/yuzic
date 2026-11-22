@@ -76,7 +76,7 @@ export async function downloadTrack(
 }
 
 type RequestStatus = { status?: string; error?: string | null };
-export type RequestOutcome = 'downloading' | 'completed' | 'not_found' | 'failed' | 'unconfirmed';
+type RequestOutcome = 'downloading' | 'completed' | 'not_found' | 'failed' | 'unconfirmed';
 
 /** A 202 only queues the search. Confirm that SoulSync found a transfer before reporting success. */
 export async function waitForRequestOutcome(config: SoulSyncConfig, requestId: string): Promise<RequestOutcome> {

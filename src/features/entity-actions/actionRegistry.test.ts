@@ -110,7 +110,7 @@ function songExternalCtx(overrides: Partial<SongExternalActionContext> = {}): So
     kind: 'song', origin: 'external',
     song: {
       localId: 'local:song:ext:deezer:1',
-      album: { title: 'An Album' },
+      album: { nativeId: 'album-1', title: 'An Album' },
       artist: { name: 'An Artist' },
     } as SongExternalActionContext['song'],
     t, colors: { secondary: '#000', placeholder: '#999' }, close: noop, onPlay: undefined,
@@ -133,6 +133,14 @@ describe('songExternalActions', () => {
       onPlay: noop, canDownload: true, canDownloadTrack: true,
     })).map(a => a.id);
     expect(ids).toEqual(['play', 'want', 'getSong', 'get', 'goToAlbum', 'goToArtist']);
+  });
+
+  it('keeps album actions hidden when a single track has no album id', () => {
+    const ids = resolveActions(songExternalActions, songExternalCtx({
+      canDownload: true, canDownloadTrack: true,
+      song: { localId: 'track-1', album: { title: 'Single' }, artist: { name: 'An Artist' } } as SongExternalActionContext['song'],
+    })).map(a => a.id);
+    expect(ids).toEqual(['want', 'getSong', 'goToArtist']);
   });
 
   it('hides Want entirely when the song has no localId', () => {

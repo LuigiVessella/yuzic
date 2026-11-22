@@ -89,6 +89,7 @@ export const musicbrainzProvider: IntegrationProvider = {
       const album = mapMbAlbum(rg, { provenance: MB_PROVENANCE, songIds: songs.map(s => s.localId) });
       return { album, songs };
     },
+    'catalogue.song': async nativeId => mapRecording(await currentMusicbrainzClient().getRecording(nativeId)),
   },
   testConnection: async () => ({ ok: true }),
 };

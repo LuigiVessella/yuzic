@@ -40,9 +40,7 @@ import type { SearchEntityEntry } from '@/state/redux/slices/searchHistorySlice'
 import { useMatchedNavigation } from '@/features/sources/useMatchedNavigation';
 import { useEnabledSearchSourceIds } from '@/features/sources/useSearchSourcesEnabled';
 import { useAccountSheet } from '@/features/settings/AccountSheetContext';
-import { getDeezerTrack } from '@/providers/integration/deezer';
-import { currentMusicbrainzClient } from '@/providers/registry/musicbrainz';
-import { mapRecording } from '@/providers/integration/musicbrainz/mapRecording';
+import { KEYLESS_INTEGRATIONS } from '@/providers/registry/keyless';
 import type { Song } from '@/domain/entities/Song';
 
 export function useSearchScreenModel() {
@@ -219,9 +217,8 @@ export function useSearchScreenModel() {
   };
 
   const resolveExternalSong = async (source: string | undefined, id: string): Promise<Song | null> => {
-    if (source === 'deezer') return getDeezerTrack(id);
-    if (source === 'musicbrainz') return mapRecording(await currentMusicbrainzClient().getRecording(id));
-    return null;
+    const provider = KEYLESS_INTEGRATIONS.find(item => item.id === source);
+    return provider?.capabilities['catalogue.song']?.(id) ?? null;
   };
 
   const handleRecentSongPress = async (entity: SearchEntityEntry) => {

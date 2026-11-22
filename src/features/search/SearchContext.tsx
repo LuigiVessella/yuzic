@@ -26,32 +26,19 @@ import {
 } from '@/features/offline/collectionState';
 
 import { dedupeAndSort, type SearchResult } from '@/features/search/searchRanking';
-import { planSearchLegs, type SearchResultScope } from '@/features/search/searchLegs';
+import { planSearchLegs, type SearchFilters } from '@/features/search/searchLegs';
 import {
   searchLibraryLeg,
   searchServerLeg,
   searchPlaylistIndexLeg,
   searchExternalLeg,
   ALL_SEARCH_ENTITY_TYPES,
-  type SearchEntityType,
   type SearchIndex,
   type DownloadedIds,
 } from '@/features/search/searchPolicy';
 
 export type { SearchResult } from '@/features/search/searchRanking';
 export type { SearchEntityType } from '@/features/search/searchPolicy';
-
-type SearchFilters = {
-  /** `all` combines library and enabled external source sections. */
-  resultScope: SearchResultScope;
-  /** Source ids to query in `all` or `other` — the sources the
-   *  Filters sheet left checked, already narrowed to ones enabled for
-   *  search. Ignored when `resultScope` is 'library'. */
-  sourceIds: string[];
-  /** Which entity types to ask each external source for. Defaults to all
-   *  supported types when omitted. Ignored when `resultScope` is 'library'. */
-  entityTypes?: SearchEntityType[];
-};
 
 interface SearchContextType {
   searchResults: SearchResult[];

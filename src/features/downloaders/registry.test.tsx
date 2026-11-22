@@ -9,6 +9,7 @@ import serversReducer from '@/state/redux/slices/serversSlice';
 import * as lidarr from '@/providers/integration/lidarr';
 import * as slskd from '@/providers/integration/slskd';
 import * as soulsync from '@/providers/integration/soulsync';
+import { log } from '@/features/diagnostics/log';
 
 jest.mock('@/providers/integration/lidarr', () => ({
   ...jest.requireActual('@/providers/integration/lidarr'),
@@ -164,7 +165,7 @@ describe('downloaders as providers', () => {
   });
 
   it('logs only the SoulSync request code and status on a failed track request', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = jest.spyOn(log.downloads, 'warn').mockImplementation(() => {});
     const fetch = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
       status: 503,
@@ -179,7 +180,7 @@ describe('downloaders as providers', () => {
       await expect(by('soulsync').downloadTrack!(config, { title: 'Track title', artist: 'Artist name' }))
         .resolves.toMatchObject({ success: false, code: 'NOT_AVAILABLE' });
 
-      expect(warn).toHaveBeenCalledWith('[SoulSync] Track request failed', {
+      expect(warn).toHaveBeenCalledWith('SoulSync track request failed', {
         code: 'NOT_AVAILABLE',
         status: 503,
       });

@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import * as lidarr from '@/providers/integration/lidarr'
 import * as slskd from '@/providers/integration/slskd'
 import * as soulsync from '@/providers/integration/soulsync'
+import { log } from '@/features/diagnostics/log'
 import * as downtify from '@/providers/integration/downtify'
 import type { SlskdSearchPreferences } from '@/providers/integration/slskd'
 import type { DownloaderId } from '@/state/redux/slices/downloadersSlice'
@@ -186,7 +187,7 @@ const soulsyncDownloadTrack = async (config: DownloaderConfig, req: TrackDownloa
     return { success: false, code: outcome, message: `SoulSync request ${outcome}` }
   } catch (error) {
     const soulSyncError = error instanceof soulsync.SoulSyncError ? error : null
-    console.warn('[SoulSync] Track request failed', {
+    log.downloads.warn('SoulSync track request failed', {
       code: soulSyncError?.code ?? (error instanceof Error ? error.name : 'UnknownError'),
       status: soulSyncError?.status,
     })

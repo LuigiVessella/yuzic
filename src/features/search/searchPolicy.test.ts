@@ -6,7 +6,7 @@ import { searchLibraryLeg, searchServerLeg, searchPlaylistIndexLeg, searchExtern
 jest.mock('@/providers/registry/keyless', () => {
   const found = (id: string) => ({
     artists: [],
-    albums: [{ entity: { nativeId: `${id}-album`, title: `${id} album`, cover: { kind: 'none' }, externalIds: {} }, subtitle: 'Artist' }],
+    albums: [{ entity: { nativeId: `${id}-album`, title: `${id} album`, artist: { name: 'Artist' }, cover: { kind: 'none' }, externalIds: {} }, subtitle: 'Artist' }],
   });
   const provider = (id: string, search: () => Promise<unknown>) => ({
     kind: 'integration', id, presentation: { nameKey: id, icon: 0, color: '#000' }, auth: { tier: 'none' },
