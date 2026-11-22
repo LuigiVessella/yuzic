@@ -23,6 +23,17 @@ describe('resultToAlbum', () => {
     const album = resultToAlbum(external, 'srv-1');
     expect(album.provenance).toEqual({ origin: 'integration', providerId: 'deezer' });
   });
+
+  it('keeps a single as a release rather than converting it to a song or album', () => {
+    const result: SearchResult = { ...baseResult, source: 'external', externalSource: 'deezer', releaseType: 'single' };
+    expect(resultToAlbum(result, 'srv-1').releaseType).toBe('single');
+  });
+
+  it('uses the actual MusicBrainz artist when the row subtitle is a year', () => {
+    const result: SearchResult = { ...baseResult, source: 'external', externalSource: 'musicbrainz',
+      subtext: '1977', artistName: 'Fleetwood Mac' };
+    expect(resultToAlbum(result, 'srv-1').artist.name).toBe('Fleetwood Mac');
+  });
 });
 
 describe('resultToArtist', () => {

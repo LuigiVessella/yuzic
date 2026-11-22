@@ -10,6 +10,7 @@
 import {
   searchDeezerArtists,
   searchDeezerAlbums,
+  searchDeezerTracks,
   getDeezerAlbum,
 } from '@/providers/integration/deezer';
 import { sourceColor } from '@/constants/design';
@@ -27,11 +28,13 @@ export const deezerProvider: IntegrationProvider = {
   // Its pictures fill gaps through `coverBackups.ts`, not a capability here.
   capabilities: {
     'catalogue.search': async (query, kinds, signal) => {
-      const [artists, albums] = await Promise.all([
+      const [songs, artists, albums] = await Promise.all([
+        kinds.songs ? searchDeezerTracks(query, 8, signal) : Promise.resolve([]),
         kinds.artists ? searchDeezerArtists(query, 4, signal) : Promise.resolve([]),
         kinds.albums ? searchDeezerAlbums(query, 6, signal) : Promise.resolve([]),
       ]);
       return {
+        songs: songs.map(entity => ({ entity, subtitle: entity.artist.name })),
         // Deezer has no second line worth showing for an artist, and an
         // album's is its artist. Both are this catalogue's own choice.
         artists: artists.map(entity => ({ entity, subtitle: '' })),

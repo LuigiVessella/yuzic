@@ -2,7 +2,7 @@
  * The Search screen's one view model — every piece of state, effect, and
  * handler the screen needs, so `SearchScreen.tsx` itself is JSX plus styling.
  *
- * Owns the debounced query, the Library-XOR-Other-sources scope, the Filters
+ * Owns the debounced query, the combined search scope, the Filters
  * sheet selections, and the handlers that record/replay/navigate to a
  * result. Delegates *what* gets searched to `useSearch()`
  * (`src/features/search/SearchContext.tsx`) and *what gets recorded* to
@@ -40,6 +40,10 @@ import type { SearchEntityEntry } from '@/state/redux/slices/searchHistorySlice'
 import { useMatchedNavigation } from '@/features/sources/useMatchedNavigation';
 import { useEnabledSearchSourceIds } from '@/features/sources/useSearchSourcesEnabled';
 import { useAccountSheet } from '@/features/settings/AccountSheetContext';
+import { getDeezerTrack } from '@/providers/integration/deezer';
+import { currentMusicbrainzClient } from '@/providers/registry/musicbrainz';
+import { mapRecording } from '@/providers/integration/musicbrainz/mapRecording';
+import type { Song } from '@/domain/entities/Song';
 
 export function useSearchScreenModel() {
   const { t } = useTranslation();
@@ -62,8 +66,7 @@ export function useSearchScreenModel() {
 
   const [query, setQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
-  // 'library' is the default and the only scope that ever runs without an
-  // explicit switch — "Other sources" is the deliberate external action.
+  // External requests still require each source's Search use to be enabled.
   // The filters live in settings, not here. As local state they were forgotten
   // every time the screen unmounted, so a chosen scope and set of sources came
   // back as "Library, everything" without saying so.
@@ -215,8 +218,20 @@ export function useSearchScreenModel() {
     history.recordSearch(value);
   };
 
+  const resolveExternalSong = async (source: string | undefined, id: string): Promise<Song | null> => {
+    if (source === 'deezer') return getDeezerTrack(id);
+    if (source === 'musicbrainz') return mapRecording(await currentMusicbrainzClient().getRecording(id));
+    return null;
+  };
+
   const handleRecentSongPress = async (entity: SearchEntityEntry) => {
     try {
+      if (entity.source === 'external') {
+        const song = await resolveExternalSong(entity.externalSource, entity.id);
+        if (song) openSongOptions(song);
+        else notify.error(t('common.songDetailsError'));
+        return;
+      }
       const resolved = await resolvePlayableSong(entity.id);
       if (resolved) await playSong(resolved.song);
       else notify.error(t('common.playbackError'));
@@ -257,6 +272,12 @@ export function useSearchScreenModel() {
   const onSongPress = async (result: SearchResult) => {
     selectResult(result);
     try {
+      if (result.source === 'external') {
+        const song = result.song ?? await resolveExternalSong(result.externalSource, result.id);
+        if (song) openSongOptions(song);
+        else notify.error(t('common.songDetailsError'));
+        return;
+      }
       // `SearchResult.song` is never populated for a library match any more
       // (it would need a credentialled stream URL nobody has asked for yet),
       // so this always resolves by id, same as any result that arrives
@@ -271,6 +292,12 @@ export function useSearchScreenModel() {
 
   const onSongOptions = async (result: SearchResult) => {
     try {
+      if (result.source === 'external') {
+        const song = result.song ?? await resolveExternalSong(result.externalSource, result.id);
+        if (song) openSongOptions(song);
+        else notify.error(t('common.songDetailsError'));
+        return;
+      }
       const resolved = await resolvePlayableSong(result.id);
       if (resolved) openSongOptions(resolved.song);
       else notify.error(t('common.songDetailsError'));
@@ -279,15 +306,12 @@ export function useSearchScreenModel() {
     }
   };
 
-  // The library scope only ever contains local results, and "Other sources"
-  // only ever contains external ones — `resultScope` already kept the fetch
-  // itself from mixing the two (see `planSearchLegs`), and this keeps the
-  // render from doing it either, belt and suspenders against a stray result
-  // slipping in from a stale request.
-  const isOtherScope = resultScope === 'other';
+  // Keep provenance-labelled sections independent in the combined view.
+  const showLibraryResults = resultScope !== 'other';
+  const showExternalResults = resultScope !== 'library';
   const libraryResults = useMemo(
-    () => (isOtherScope ? [] : searchResults.filter(r => r.source === 'local')),
-    [searchResults, isOtherScope]
+    () => (showLibraryResults ? searchResults.filter(r => r.source === 'local') : []),
+    [searchResults, showLibraryResults]
   );
 
   // Group external results by their source so each gets its own labelled,
@@ -295,15 +319,16 @@ export function useSearchScreenModel() {
   // and never merged with the library results above.
   const externalResultsBySource = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
-    if (!isOtherScope) return groups;
+    if (!showExternalResults) return groups;
     for (const r of searchResults) {
       if (r.source !== 'external' || !r.externalSource) continue;
       const existing = groups.get(r.externalSource);
       if (existing) existing.push(r);
       else groups.set(r.externalSource, [r]);
     }
-    return groups;
-  }, [searchResults, isOtherScope]);
+    return new Map([...groups.entries()].sort(([a], [b]) =>
+      selectedSourceIds.indexOf(a) - selectedSourceIds.indexOf(b)));
+  }, [searchResults, showExternalResults, selectedSourceIds]);
 
   const coversToPrefetch = useMemo(() => searchResults.slice(0, 18).map(r => r.cover), [searchResults]);
   usePrefetchCovers(coversToPrefetch, 'thumb');
@@ -325,7 +350,7 @@ export function useSearchScreenModel() {
   }, [dispatch, selectedEntityTypes]);
 
   const noResultsForScope = query.trim() !== '' && hasSearched && !isLoading
-    && (isOtherScope ? externalResultsBySource.size === 0 : libraryResults.length === 0);
+    && libraryResults.length === 0 && externalResultsBySource.size === 0;
 
   return {
     // navigation / identity
@@ -337,7 +362,7 @@ export function useSearchScreenModel() {
     // scope / filters
     resultScope, setResultScope, enabledSearchSourceIds,
     selectedSourceIds, selectedEntityTypes, toggleFilterSource, toggleFilterEntityType,
-    isOtherScope, showSourceHeaders,
+    showLibraryResults, showExternalResults, showSourceHeaders,
     // results
     hasSearched, isLoading, hasError, degraded,
     libraryResults, externalResultsBySource, noResultsForScope,

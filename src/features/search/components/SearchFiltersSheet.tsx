@@ -34,14 +34,14 @@ type Props = {
   onToggleEntityType: (entityType: SearchEntityType) => void;
 };
 
-const SCOPE_ORDER: SearchResultScope[] = ['library', 'other'];
-const ENTITY_TYPE_ORDER: SearchEntityType[] = ['album', 'artist'];
+const SCOPE_ORDER: SearchResultScope[] = ['all', 'library', 'other'];
+const ENTITY_TYPE_ORDER: SearchEntityType[] = ['song', 'album', 'artist'];
 
 /**
- * The Search filter sheet. It owns the whole scope choice now — "Your Library"
- * vs "Other sources" is the first section here rather than a segmented control
+ * The Search filter sheet. It owns the scope choice — "All sources", "Your Library"
+ * and "Other sources" are here rather than a segmented control
  * on the screen, so the search field gets the full width and the one control
- * to its right holds every search decision. Picking "Other sources" reveals the
+ * to its right holds every search decision. "All sources" and "Other sources" reveal the
  * source and entity-type filters beneath; "Your Library" hides them because
  * they don't apply to a local search.
  *
@@ -56,7 +56,7 @@ const SearchFiltersSheet = forwardRef<BottomSheetModal, Props>(
   ({ resultScope, onChangeScope, availableSourceIds, selectedSourceIds, onToggleSource, selectedEntityTypes, onToggleEntityType }, ref) => {
     const { t } = useTranslation();
     const { colors } = useTheme();
-  const icons = useIconSize();
+    const icons = useIconSize();
     const sheetBg = useOptionSheetBackground();
     const sheetContent = useOptionSheetContentStyle();
 
@@ -71,7 +71,7 @@ const SearchFiltersSheet = forwardRef<BottomSheetModal, Props>(
       });
 
     const snapPoints = useMemo(() => ['50%'], []);
-    const isOther = resultScope === 'other';
+    const isOther = resultScope !== 'library';
 
     return (
       <BottomSheetModal

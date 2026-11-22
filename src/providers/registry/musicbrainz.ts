@@ -12,6 +12,7 @@ import type { MusicbrainzClient } from '@/providers/integration/musicbrainz';
 import { mapAlbum as mapMbAlbum } from '@/providers/integration/musicbrainz/mapAlbum';
 import { mapArtist as mapMbArtist } from '@/providers/integration/musicbrainz/mapArtist';
 import { mapSong as mapMbSong } from '@/providers/integration/musicbrainz/mapSong';
+import { mapRecording } from '@/providers/integration/musicbrainz/mapRecording';
 import { sourceColor } from '@/constants/design';
 import { integrationProvenance } from '@/domain/identity/Provenance';
 import { selectSourceServerUrls } from '@/features/settings/sources/state';
@@ -60,11 +61,16 @@ export const musicbrainzProvider: IntegrationProvider = {
   auth: { tier: 'none' },
   capabilities: {
     'catalogue.search': async (query, kinds, signal) => {
-      const [artists, releaseGroups] = await Promise.all([
+      const [recordings, artists, releaseGroups] = await Promise.all([
+        kinds.songs ? currentMusicbrainzClient().searchRecordingByTitle(query, 6, signal) : Promise.resolve([]),
         kinds.artists ? currentMusicbrainzClient().searchArtist(query, 4, signal) : Promise.resolve([]),
         kinds.albums ? currentMusicbrainzClient().searchReleaseGroupByTitle(query, 6, signal) : Promise.resolve([]),
       ]);
       return {
+        songs: recordings.map(dto => {
+          const entity = mapRecording(dto);
+          return { entity, subtitle: entity.artist.name };
+        }),
         // MusicBrainz names no second line for an artist; for a release group
         // it is the first release year, which is this catalogue's own idea of
         // what distinguishes two records with the same title.

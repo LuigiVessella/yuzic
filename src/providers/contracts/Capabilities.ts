@@ -21,6 +21,7 @@
  */
 import type { Album } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
+import type { Song } from '@/domain/entities/Song';
 import type { AlbumDetail } from '@/domain/entities/Detail';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 
@@ -38,6 +39,7 @@ interface ArtistEnrichment {
 
 /** Which entity kinds a search should ask for. */
 interface CatalogueSearchKinds {
+  songs: boolean;
   artists: boolean;
   albums: boolean;
 }
@@ -49,6 +51,7 @@ interface CatalogueSearchMatch<T> {
 }
 
 interface CatalogueSearchResults {
+  songs: CatalogueSearchMatch<Song>[];
   artists: CatalogueSearchMatch<Artist>[];
   albums: CatalogueSearchMatch<Album>[];
 }

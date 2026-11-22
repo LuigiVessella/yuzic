@@ -1,6 +1,7 @@
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import type { CoverSource } from '@/domain/entities/Cover';
 import type { Song } from '@/domain/entities/Song';
+import type { ReleaseType } from '@/domain/entities/Album';
 
 /**
  * Ordering and de-duplication of search results.
@@ -15,6 +16,8 @@ export interface SearchResult {
   id: string;
   title: string;
   subtext: string;
+  /** Album artist; may differ from the displayed subtitle (MusicBrainz shows a year). */
+  artistName?: string;
   cover: CoverSource;
   type: 'song' | 'album' | 'artist' | 'playlist';
   source: 'local' | 'external';
@@ -27,6 +30,7 @@ export interface SearchResult {
    * them off the artist reference on a domain album, not off a search row.
    */
   externalIds?: ExternalIds;
+  releaseType?: ReleaseType;
   isDownloaded: boolean;
   song?: Song;
 }
@@ -34,7 +38,7 @@ export interface SearchResult {
 /** Identity of a result: the same id from the library and from Deezer are
  * different results, and a song and an album may share an id. */
 export const resultKey = (result: SearchResult) =>
-  `${result.source}:${result.type}:${result.id}`;
+  `${result.source}:${result.externalSource ?? ''}:${result.type}:${result.id}`;
 
 const sourceRank = (source: SearchResult['source']) => (source === 'local' ? 1 : 2);
 

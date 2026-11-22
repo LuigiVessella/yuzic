@@ -2,6 +2,7 @@ import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import { removeServer } from '@/state/redux/slices/serversSlice';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { CoverSource } from '@/domain/entities/Cover';
+import type { ReleaseType } from '@/domain/entities/Album';
 
 type SearchEntityType = 'song' | 'album' | 'artist' | 'playlist';
 
@@ -30,12 +31,14 @@ export interface SearchEntityEntry {
   id: string;
   title: string;
   subtitle: string;
+  artistName?: string;
   cover: CoverSource;
   source: 'local' | 'external';
   /** Which integration supplied it. An opaque provider id, not a closed set:
    * a search history entry has no business enumerating who can be searched. */
   externalSource?: string;
   externalIds?: SearchHistoryExternalIds;
+  releaseType?: ReleaseType;
 }
 
 export type SearchHistoryEntry = SearchQueryEntry | SearchEntityEntry;
@@ -57,7 +60,7 @@ export const MAX_ENTITY_ENTRIES = 12;
 export const searchHistoryEntryKey = (entry: SearchHistoryEntry): string =>
   entry.kind === 'query'
     ? `query:${entry.text.toLowerCase()}`
-    : `entity:${entry.type}:${entry.id}`;
+    : `entity:${entry.source}:${entry.externalSource ?? ''}:${entry.type}:${entry.id}`;
 
 const ENTITY_TYPES: SearchEntityType[] = ['song', 'album', 'artist', 'playlist'];
 

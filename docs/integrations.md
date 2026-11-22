@@ -278,7 +278,9 @@ for what it is for:
   used only on a same-name match (after Cover Art Archive for albums).
 - **Pages** — similar artists, popular tracks, 30-second previews, and
   recommendations on artist, album and playlist screens.
-- **Search** — Deezer results under Other sources.
+- **Search** — track, album and artist results in a separate Deezer section
+  when its Search use is enabled. Deezer tracks are metadata with previews,
+  never full-audio library songs.
 - **Home** — charts and genre shelves. Off by default, and absent when offline.
 
 This replaced a single "discovery" switch that turned on things nobody had
@@ -504,6 +506,8 @@ No auth. `src/providers/integration/deezer/`.
 | `GET /search/artist` | Resolving an artist by name; Deezer results in search; Metadata › Artwork backup for an artist photo (used only when the lead artist's name matches — "A feat. B" looks up A) | 12h |
 | `GET /search/album` | Resolving an album; Deezer results in search; preview lookup; Metadata › Artwork backup for an album cover (same title and lead artist only) | 12h |
 | `GET /artist/{id}` | External artist page | 7d |
+| `GET /search/track` | Track results in Search | 12h |
+| `GET /track/{id}` | Reopening a track from Search history | -- |
 | `GET /artist/{id}/albums` | Discography on an external artist page | 1d |
 | `GET /artist/{id}/related` | Similar artists | 7d |
 | `GET /artist/{id}/top` | Top tracks on an artist page | 1d |
@@ -528,6 +532,8 @@ with the same `User-Agent`.
 | `GET /release-group?artist={mbid}&inc=artist-credits&limit=25&offset=` | Progressive discography, including releases beyond the lookup's 25-item limit |
 | `GET /release-group?query=` | Resolving an album by artist + title (never to find a cover) |
 | `GET /release-group/{mbid}?inc=artist-credits` | External album page |
+| `GET /recording?query=` | Recording results in Search |
+| `GET /recording/{mbid}?inc=artist-credits+releases` | Reopening a recording from Search history |
 | `GET /release?release-group={mbid}&status=official&inc=media&limit=100` | Bounded edition metadata for choosing a representative track list |
 | `GET /release/{mbid}?inc=release-groups+recordings+artist-credits` | Selected edition's tracks; resolving a release id to the release-group Lidarr expects |
 

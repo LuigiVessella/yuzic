@@ -20,6 +20,16 @@ beforeEach(() => {
 });
 
 describe('MusicBrainz client address', () => {
+  it('searches both artist-title orders for a recording in one request', async () => {
+    fetchMock.mockResolvedValue(ok({ recordings: [{ id: 'rec-1', title: 'Lontano' }] }));
+    const found = await createMusicbrainzClient({ serverUrl: 'http://nas:5000' })
+      .searchRecordingByTitle('Lontano - Sfera Ebbasta');
+    const query = new URL(urlOfCall(0)).searchParams.get('query');
+    expect(query).toContain('recording:"Lontano" AND artist:"Sfera Ebbasta"');
+    expect(query).toContain('recording:"Sfera Ebbasta" AND artist:"Lontano"');
+    expect(found[0].id).toBe('rec-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('asks the public server when no address is given', async () => {
     await createMusicbrainzClient().searchArtist('Muse');
     expect(urlOfCall(0).startsWith('https://musicbrainz.org/ws/2/artist?query=')).toBe(true);

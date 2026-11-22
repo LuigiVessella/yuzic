@@ -1007,13 +1007,14 @@
     "title": "搜索",
     "placeholder": "搜索音乐、歌手或播放列表...",
     "noResults": "未找到结果",
-    "searchError": "无法连接服务器 — 结果可能不完整",
-    "searchLocalOnly": "无法连接服务器 — 仅显示您的音乐库",
+    "searchError": "部分来源无法连接 — 结果可能不完整",
+    "searchLocalOnly": "正在显示可用结果 — 部分来源处于离线状态",
     "recentSearches": "最近搜索",
     "clearRecent": "清除",
     "removeRecentSearch": "从最近搜索中删除“{{query}}”",
     "recentlyOpened": "最近打开",
     "scope": {
+      "all": "所有来源",
       "library": "音乐库",
       "other": "其他来源"
     },

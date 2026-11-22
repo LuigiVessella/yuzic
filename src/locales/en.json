@@ -1010,13 +1010,14 @@
     "title": "Search",
     "placeholder": "Search for music, artists, or playlists...",
     "noResults": "No results found",
-    "searchError": "Couldn't reach the server — results may be incomplete",
-    "searchLocalOnly": "Showing your library only — can't reach the server",
+    "searchError": "Some sources couldn't be reached — results may be incomplete",
+    "searchLocalOnly": "Showing available results — some sources are offline",
     "recentSearches": "Recent searches",
     "clearRecent": "Clear",
     "removeRecentSearch": "Remove \"{{query}}\" from recent searches",
     "recentlyOpened": "Recently opened",
     "scope": {
+      "all": "All sources",
       "library": "Your Library",
       "other": "Other sources"
     },

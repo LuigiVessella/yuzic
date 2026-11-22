@@ -1,4 +1,4 @@
-import searchReducer, { selectSearchScope, setSearchScope } from './state'
+import searchReducer, { migrateSearchSettings, selectSearchScope, setSearchScope } from './state'
 
 /**
  * Search settings are only where a search runs. Which outside catalogues it
@@ -13,5 +13,13 @@ describe('search settings', () => {
   it('writes the chosen scope', () => {
     const settingsSearch = searchReducer(undefined, setSearchScope('client'))
     expect(selectSearchScope({ settingsSearch })).toBe('client')
+  })
+
+  it('upgrades old scopes and song filters without enabling outside sources', () => {
+    const old = { resultScope: 'library', entityTypes: ['album'], sourceIds: ['deezer'], _persist: { version: 1 } }
+    expect(migrateSearchSettings(old)).toMatchObject({
+      resultScope: 'all', entityTypes: ['song', 'album'], sourceIds: ['deezer'],
+    })
+    expect(searchReducer(undefined, { type: 'init' }).resultScope).toBe('all')
   })
 })

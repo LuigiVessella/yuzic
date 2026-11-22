@@ -1,6 +1,11 @@
 import { planSearchLegs } from './searchLegs';
 
 describe('planSearchLegs', () => {
+  it('plans local results and enabled outside sources in the default combined scope', () => {
+    expect(planSearchLegs({ resultScope: 'all', enabledExternalSourceIds: ['deezer'],
+      searchScope: 'server', serverReachable: true, deviceOnline: true,
+    })).toEqual({ client: true, server: true, externalSources: ['deezer'], degraded: false });
+  });
   it('attempts the server leg for the library scope when everything is reachable', () => {
     expect(planSearchLegs({
       resultScope: 'library',

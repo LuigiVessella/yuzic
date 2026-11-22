@@ -42,12 +42,9 @@ export type { SearchResult } from '@/features/search/searchRanking';
 export type { SearchEntityType } from '@/features/search/searchPolicy';
 
 type SearchFilters = {
-  /** 'library' (default) — today's local search — or 'other', the
-   *  deliberate external-search action. The two are never both attempted
-   *  in the same request; that split is what keeps library and external
-   *  results from mixing by default. */
+  /** `all` combines library and enabled external source sections. */
   resultScope: SearchResultScope;
-  /** Source ids to query when `resultScope` is 'other' — the sources the
+  /** Source ids to query in `all` or `other` — the sources the
    *  Filters sheet left checked, already narrowed to ones enabled for
    *  search. Ignored when `resultScope` is 'library'. */
   sourceIds: string[];
@@ -192,8 +189,8 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
       // cannot land is not attempted at all: each one would otherwise hang to
       // its own timeout on every keystroke and then land in the same `catch`
       // as a real failure, so local results that succeeded were shown
-      // underneath an error banner. Library and external legs are mutually
-      // exclusive here — `resultScope` picks one family, never both.
+      // underneath an error banner. `all` plans both families; narrower
+      // filters plan one.
       const legs = planSearchLegs({
         resultScope: filters.resultScope,
         enabledExternalSourceIds: filters.sourceIds,
@@ -202,27 +199,43 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
         deviceOnline: canReachExternal,
       });
 
+      const publish = () => {
+        if (requestId === searchRequestIdRef.current) setSearchResults(dedupeAndSort(results, lowerQuery));
+      };
       if (legs.client) {
         results.push(...searchLibraryLeg(searchIndex, query, downloaded));
+        publish();
       }
       if (requestId !== searchRequestIdRef.current) return;
 
+      const pending: Promise<void>[] = [];
       if (legs.server) {
-        try { results.push(...await searchServerLeg(api?.search, query, downloaded)); } catch { errored = true; }
+        pending.push((async () => {
+          try { results.push(...await searchServerLeg(api?.search, query, downloaded)); } catch { errored = true; }
         // The server leg cannot answer for playlists — no `SearchApi` returns
         // them, and Subsonic's search3 has no playlist in its response — but
         // they are synced whole, so the index has every one. Without this a
         // server-scoped search found none, while the on-device scope did.
-        results.push(...searchPlaylistIndexLeg(searchIndex, query, downloaded));
+          results.push(...searchPlaylistIndexLeg(searchIndex, query, downloaded));
+          publish();
+        })());
       }
-      if (requestId !== searchRequestIdRef.current) return;
 
       if (legs.externalSources.length > 0) {
-        try { results.push(...await searchExternalLeg(legs.externalSources, query, entityTypes, controller.signal)); } catch { errored = true; }
+        pending.push((async () => {
+          try {
+            await searchExternalLeg(legs.externalSources, query, entityTypes, controller.signal, sourceResults => {
+              results.push(...sourceResults);
+              publish();
+            });
+          } catch { errored = true; }
+          publish();
+        })());
       }
+      await Promise.all(pending);
       if (requestId !== searchRequestIdRef.current) return;
 
-      setSearchResults(dedupeAndSort(results, lowerQuery));
+      publish();
       setHasError(errored);
       setDegraded(legs.degraded);
     } finally {

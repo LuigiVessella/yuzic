@@ -1,4 +1,4 @@
-import { getDeezerAlbum, getDeezerArtistAlbums, resolveDeezerArtistByName, refreshDeezerDiscovery } from './catalog';
+import { getDeezerAlbum, getDeezerArtistAlbums, resolveDeezerArtistByName, refreshDeezerDiscovery, searchDeezerTracks } from './catalog';
 import { integrationProvenance } from '@/domain/identity/Provenance';
 import { makeLocalId } from '@/domain/identity/LocalId';
 import type { Artist } from '@/domain/entities/Artist';
@@ -6,6 +6,20 @@ import type { Artist } from '@/domain/entities/Artist';
 function jsonResponse(body: unknown): Promise<Response> {
   return Promise.resolve({ ok: true, status: 200, json: async () => body } as unknown as Response);
 }
+
+describe('Deezer track search', () => {
+  it('returns a track as an external song with its artist and album', async () => {
+    global.fetch = jest.fn(async () => jsonResponse({ data: [{
+      id: 42, title: 'Lontano', duration: 185, artist: { id: 7, name: 'Sfera Ebbasta' },
+      album: { id: 9, title: 'Single', artist: { id: 7, name: 'Sfera Ebbasta' } },
+    }] })) as unknown as typeof fetch;
+    const [song] = await searchDeezerTracks('Lontano - Sfera Ebbasta');
+    expect(song).toMatchObject({ nativeId: '42', title: 'Lontano',
+      artist: { name: 'Sfera Ebbasta' }, album: { nativeId: '9' },
+      externalIds: { deezerId: '42' }, contentKind: 'preview',
+    });
+  });
+});
 
 describe('getDeezerArtistAlbums', () => {
   it('uses an offset for later pages and a deliberate refresh expires discovery entries', async () => {

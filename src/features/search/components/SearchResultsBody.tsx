@@ -5,10 +5,11 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Text } from '@/components/Text';
 import { useTranslation } from 'react-i18next';
 
-import { motion, spacing, typography } from '@/constants/design';
+import { iconSize, motion, spacing, typography } from '@/constants/design';
 import { useTheme } from '@/features/theme/useTheme';
 import { useReducedMotion } from '@/features/theme/useReducedMotion';
 import SkeletonListRow from '@/components/SkeletonListRow';
+import SpinningLoaderCircle from '@/components/SpinningLoaderCircle';
 import { getSourceMeta } from '@/features/sources/registry';
 import type { useSearchScreenModel } from '@/features/search/useSearchScreenModel';
 import RecentSearches from './RecentSearches';
@@ -21,9 +22,7 @@ type Model = ReturnType<typeof useSearchScreenModel>;
  * The scrollable body: recent searches when idle, a skeleton while loading,
  * or the results themselves — library rows in one flat list, "Other sources"
  * rows grouped under their source's own labelled header. Library and
- * external are never both on screen (`m.isOtherScope` picks exactly one),
- * the render-side half of the Library-XOR-Other-sources rule the fetch side
- * enforces in `planSearchLegs`.
+ * external sections can appear together in the default `all` scope.
  */
 export default function SearchResultsBody({ m }: { m: Model }) {
   const { t } = useTranslation();
@@ -85,7 +84,7 @@ export default function SearchResultsBody({ m }: { m: Model }) {
     return branch('browse', <SearchBrowse />);
   }
 
-  if (m.isLoading) {
+  if (m.isLoading && m.libraryResults.length === 0 && m.externalResultsBySource.size === 0) {
     return branch('loading', <>{[...Array(8)].map((_, i) => <SkeletonListRow key={i} />)}</>);
   }
 
@@ -104,13 +103,18 @@ export default function SearchResultsBody({ m }: { m: Model }) {
 
   return branch('results', (
     <>
-      {!m.isOtherScope && m.libraryResults.map(result => (
+      {m.resultScope === 'all' && m.libraryResults.length > 0 && (
+        <View style={styles.sourceHeader}>
+          <Text style={[styles.sourceHeaderText, { color: colors.subtext }]}>{t('search.scope.library')}</Text>
+        </View>
+      )}
+      {m.showLibraryResults && m.libraryResults.map(result => (
         <View key={`local:${result.type}:${result.id}`} style={styles.resultBlock}>
           {row(result)}
         </View>
       ))}
 
-      {m.isOtherScope && Array.from(m.externalResultsBySource.entries()).map(([sourceId, results]) => {
+      {m.showExternalResults && Array.from(m.externalResultsBySource.entries()).map(([sourceId, results]) => {
         const meta = getSourceMeta(sourceId);
         const label = meta?.label ?? sourceId;
         const color = meta?.color ?? colors.subtext;
@@ -137,6 +141,7 @@ export default function SearchResultsBody({ m }: { m: Model }) {
           {t('search.noResults')}
         </Text>
       )}
+      {m.isLoading && <View style={styles.pending}><SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} /></View>}
     </>
   ));
 }
@@ -145,6 +150,7 @@ export default function SearchResultsBody({ m }: { m: Model }) {
 const BRANCH_RISE = 8;
 
 const styles = StyleSheet.create({
+  pending: { alignItems: 'center', paddingVertical: spacing.md },
   resultBlock: {},
   resultBlockFirst: {
     paddingTop: spacing.sm,

@@ -226,7 +226,7 @@ const ExternalSongOptionsSheet = forwardRef<BottomSheetModal, ExternalSongOption
         <EntityOptionsSheet
           ref={ref}
           snapPoints={snapPoints}
-          header={{ cover: song.cover, title: song.title, subtitle: `${albumArtist} — ${albumTitle}` }}
+          header={{ cover: song.cover, title: song.title, subtitle: albumTitle ? `${albumArtist} — ${albumTitle}` : albumArtist }}
           actions={actions}
           infoSection={
             <>

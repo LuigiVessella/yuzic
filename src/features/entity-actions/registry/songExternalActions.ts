@@ -74,7 +74,7 @@ export const songExternalActions: ActionDef<Ctx>[] = [
     label: ctx => ctx.t('externalAlbum.menu.get'),
     icon: ctx => React.createElement(CloudDownload, { size: iconSize.loader, color: ctx.colors.secondary }),
     trailing: ctx => chevron(ctx.colors.placeholder),
-    visible: ctx => !ctx.isInLibrary && ctx.canDownload,
+    visible: ctx => !ctx.isInLibrary && ctx.canDownload && !!ctx.song.album.nativeId,
     invoke: ctx => ctx.handlers.openAlbumGet(),
   },
   // The same two rows the library sheet offers, and they mean the same thing
@@ -86,7 +86,7 @@ export const songExternalActions: ActionDef<Ctx>[] = [
     id: 'goToAlbum',
     label: ctx => ctx.t('songOptions.actions.goToAlbum'),
     icon: ctx => React.createElement(Disc, { size: iconSize.loader, color: ctx.colors.secondary }),
-    visible: ctx => !!ctx.song.album.title,
+    visible: ctx => !!ctx.song.album.nativeId,
     invoke: ctx => ctx.handlers.goToAlbum(),
   },
   {

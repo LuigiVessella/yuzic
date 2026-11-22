@@ -43,7 +43,9 @@ const baseModel = {
   query: '',
   isSearching: false,
   isLoading: false,
-  isOtherScope: false,
+  resultScope: 'library',
+  showLibraryResults: true,
+  showExternalResults: false,
   showSourceHeaders: false,
   recentQueries: [] as string[],
   recentEntities: [] as unknown[],
@@ -92,6 +94,19 @@ describe('SearchResultsBody, empty query', () => {
   it('browses rather than showing a blank screen when searching with no history', async () => {
     const view = await renderBody({ isSearching: true });
     expect(view.getByTestId('search-browse')).toBeTruthy();
+  });
+});
+
+describe('SearchResultsBody, combined query', () => {
+  it('keeps library and provider sections visible together', async () => {
+    const view = await renderBody({
+      query: 'Lontano', resultScope: 'all', showLibraryResults: true, showExternalResults: true,
+      libraryResults: [{ id: 'owned', type: 'song', title: 'Lontano in library' }],
+      externalResultsBySource: new Map([['deezer', [{ id: 'external', type: 'song', title: 'Lontano on Deezer' }]]]),
+    });
+    expect(view.getByText('Lontano in library')).toBeTruthy();
+    expect(view.getByText('Lontano on Deezer')).toBeTruthy();
+    expect(view.getByText('deezer')).toBeTruthy();
   });
 });
 

@@ -934,13 +934,19 @@ which screen writes the value it is reading.
   Overview and Genres, Plex's summary and Genre). **Display-only and
   gaps-only**: nothing is written to any server or onto an entity, so disabling
   instantly restores the server view. A small "via X" line, never per-item badges.
-- **Search** (`features/settings/search/`, `features/search/searchLegs.ts`) — a segmented
-  **Your Library** (default, no external calls) / **Other sources** scope with a
-  Filters sheet for search-enabled sources and entity types. `planSearchLegs`
-  picks library **XOR** external by scope, so results are never mixed by default;
+- **Search** (`features/settings/search/`, `features/search/searchLegs.ts`) —
+  **All sources** by default, with **Your Library** and **Other sources** filters.
+  The library and each enabled external source have separate result sections;
   provenance is preserved and editions/ambiguous matches stay separate.
   `searchSourcesEnabled` is independent of Home enablement (legacy
   `deezerSearchEnabled` reconciled at read time, no migration).
+
+Search defaults to `all`: the on-device library appears immediately, while
+enabled external catalogues fill separate source sections as they answer. The
+`library` and `other` filters remain available. A one-time settings migration
+moves prior scope selections to `all` and adds songs to the external type
+filter; source-use switches remain authoritative and are never enabled by the
+migration. External song rows open acquisition actions, not local playback.
 
 ## 10. Discovery — local-first, provider mixes, and generated playlists
 

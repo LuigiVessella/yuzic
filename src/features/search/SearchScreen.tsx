@@ -24,7 +24,7 @@ import SearchResultsBody from './components/SearchResultsBody';
  * The Search screen's JSX and styling only — every piece of state, effect,
  * and handler lives in `useSearchScreenModel`
  * (`src/features/search/useSearchScreenModel.ts`). See that hook for the
- * Library-XOR-Other-sources scope, the debounce, and the history/navigation
+ * combined search scope, the debounce, and the history/navigation
  * wiring; this file only lays it out.
  */
 const Search = () => {
@@ -113,14 +113,14 @@ const Search = () => {
           testID="search-filters-button"
           accessibilityRole="button"
           accessibilityLabel={t('search.filters.title')}
-          accessibilityState={{ selected: m.isOtherScope }}
+          accessibilityState={{ selected: m.showExternalResults }}
           style={[
             styles.filtersButton,
-            { backgroundColor: m.isOtherScope ? tinted(colors.themeColor, 'selected') : colors.muted, borderRadius: rad.md },
+            { backgroundColor: m.showExternalResults ? tinted(colors.themeColor, 'selected') : colors.muted, borderRadius: rad.md },
           ]}
           onPress={() => filtersSheetRef.current?.present()}
         >
-          <SlidersHorizontal size={icons.row} color={m.isOtherScope ? colors.themeColor : colors.secondary} />
+          <SlidersHorizontal size={icons.row} color={m.showExternalResults ? colors.themeColor : colors.secondary} />
         </Touchable>
       </View>
 

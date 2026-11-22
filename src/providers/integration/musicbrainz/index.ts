@@ -56,6 +56,14 @@ export type MbTrack = {
   'artist-credit'?: { name?: string; artist: { id?: string; name: string } }[];
 };
 
+export type MbRecording = {
+  id: string;
+  title: string;
+  length?: number | null;
+  'artist-credit'?: MbTrack['artist-credit'];
+  releases?: { 'release-group'?: MbReleaseGroup }[];
+};
+
 type MbRelease = {
   id: string;
   title: string;
@@ -137,6 +145,22 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
     return data['release-groups'] ?? [];
   }
 
+  async function searchRecordingByTitle(query: string, limit = 6, signal?: AbortSignal): Promise<MbRecording[]> {
+    if (!query.trim()) return [];
+    const escape = (part: string) => part.replace(/["\\]/g, '\\$&');
+    const parts = query.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
+    const search = parts.length === 2
+      ? `(recording:"${escape(parts[0])}" AND artist:"${escape(parts[1])}") OR (recording:"${escape(parts[1])}" AND artist:"${escape(parts[0])}")`
+      : `recording:"${escape(query)}"`;
+    const q = encodeURIComponent(search);
+    const data = await mb<{ recordings: MbRecording[] }>(`/recording?query=${q}&limit=${limit}&fmt=json`, signal);
+    return data.recordings ?? [];
+  }
+
+  async function getRecording(mbid: string): Promise<MbRecording> {
+    return mb<MbRecording>(`/recording/${encodeURIComponent(mbid)}?inc=artist-credits+releases&fmt=json`);
+  }
+
   async function getArtistWithReleases(mbid: string): Promise<MbArtist> {
     return mb<MbArtist>(`/artist/${mbid}?inc=release-groups&fmt=json`);
   }
@@ -175,6 +199,8 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
     searchArtist,
     searchReleaseGroup,
     searchReleaseGroupByTitle,
+    searchRecordingByTitle,
+    getRecording,
     getArtistWithReleases,
     getReleaseGroup,
     getRelease,
@@ -192,6 +218,8 @@ export const {
   searchArtist,
   searchReleaseGroup,
   searchReleaseGroupByTitle,
+  searchRecordingByTitle,
+  getRecording,
   getArtistWithReleases,
   getReleaseGroup,
   getRelease,

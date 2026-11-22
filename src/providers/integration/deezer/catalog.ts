@@ -127,6 +127,21 @@ export async function searchDeezerAlbums(query: string, limit = 8, signal?: Abor
   }, signal);
 }
 
+export async function searchDeezerTracks(query: string, limit = 8, signal?: AbortSignal): Promise<Song[]> {
+  if (!query.trim()) return [];
+  return cached(`search-tracks:${query.trim().toLowerCase()}:${limit}`, SEARCH_CACHE_MS, async () => {
+    const tracks = await requestList<DeezerTrack>(`/search/track?q=${encodeURIComponent(query)}&limit=${limit}`, signal);
+    return tracks.filter(track => track.id != null && track.album?.id != null)
+      .map(track => mapSong(track, { provenance: PROVENANCE, album: track.album! }));
+  }, signal);
+}
+
+export async function getDeezerTrack(trackId: string): Promise<Song | null> {
+  const track = await deezerClient.request<DeezerTrack>(`/track/${encodeURIComponent(trackId)}`);
+  return track.id != null && track.album?.id != null
+    ? mapSong(track, { provenance: PROVENANCE, album: track.album }) : null;
+}
+
 export async function getDeezerArtist(artistId: string): Promise<Artist | null> {
   return cached(`artist:${artistId}`, ARTIST_CACHE_MS, async () => {
     const dto = await deezerClient.request<DeezerArtist>(`/artist/${encodeURIComponent(artistId)}`);

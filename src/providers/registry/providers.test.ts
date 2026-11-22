@@ -124,7 +124,7 @@ describe('deezer provider', () => {
     await deezerProvider.capabilities['catalogue.album']?.('d-album');
     expect(deezerApi.getDeezerAlbum).toHaveBeenCalledWith('d-album');
 
-    const found = await deezerProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: false });
+    const found = await deezerProvider.capabilities['catalogue.search']?.('query', { songs: false, artists: true, albums: false });
     expect(deezerApi.searchDeezerArtists).toHaveBeenCalledWith('query', 4, undefined);
     expect(deezerApi.searchDeezerAlbums).not.toHaveBeenCalled();
     expect(found?.artists).toHaveLength(1);
@@ -146,7 +146,7 @@ describe('musicbrainz provider', () => {
     (mapMbSong as jest.Mock).mockReturnValue(makeSong());
     (mapMbAlbum as jest.Mock).mockReturnValue(makeAlbum());
 
-    await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: true });
+    await musicbrainzProvider.capabilities['catalogue.search']?.('query', { songs: false, artists: true, albums: true });
     expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
     expect(mbApi.searchReleaseGroupByTitle).toHaveBeenCalledWith('query', 6, undefined);
 
@@ -169,7 +169,7 @@ describe('musicbrainz provider', () => {
       };
       (mbApi.createMusicbrainzClient as jest.Mock).mockReturnValue(own);
 
-      await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: true });
+      await musicbrainzProvider.capabilities['catalogue.search']?.('query', { songs: false, artists: true, albums: true });
 
       expect(mbApi.createMusicbrainzClient).toHaveBeenCalledWith({ serverUrl: 'http://nas:5000' });
       expect(own.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
@@ -182,7 +182,7 @@ describe('musicbrainz provider', () => {
       mockServerUrls = { musicbrainz: '   ' };
       (mbApi.searchArtist as jest.Mock).mockResolvedValue([]);
 
-      await musicbrainzProvider.capabilities['catalogue.search']?.('query', { artists: true, albums: false });
+      await musicbrainzProvider.capabilities['catalogue.search']?.('query', { songs: false, artists: true, albums: false });
 
       expect(mbApi.createMusicbrainzClient).not.toHaveBeenCalled();
       expect(mbApi.searchArtist).toHaveBeenCalledWith('query', 4, undefined);
