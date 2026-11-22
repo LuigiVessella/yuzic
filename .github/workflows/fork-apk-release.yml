@@ -43,6 +43,13 @@ jobs:
         run: |
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
           if ($LASTEXITCODE -ne 0) { throw 'Android SDK installation failed.' }
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
       - name: Install production dependencies and verify patches
         shell: bash
         run: |
@@ -50,6 +57,8 @@ jobs:
           ./tools/verify-patches.sh
       - name: Build, verify and package the tagged APK
         shell: pwsh
+        env:
+          FORK_MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           ./tools/fork/build-apk.ps1 -Channel Release
           ./tools/fork/release-apk.ps1 -ExistingTag -SkipBuild

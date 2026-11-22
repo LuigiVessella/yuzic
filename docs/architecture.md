@@ -491,6 +491,9 @@ updateable activity PendingIntent. Notification and lock-screen entry share the
 same session activity; the host's existing singleTask activity reuses its task.
 The patch is applied by the existing mandatory postinstall/patch verification
 path and must be reviewed when updating the engine pin.
+For Windows builds it also invokes FFmpeg's configure script through MSYS2 `sh`,
+selects its host `gcc`, and copies the two source include directories because
+creating symlinks requires privileges that a normal Windows build lacks.
 
 When JavaScript recovers playback from the native queue, `resourceFromMediaItem`
 forwards album title and artwork URL to `resourceFromPlayerItem` instead of

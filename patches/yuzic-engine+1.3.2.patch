@@ -26,3 +26,47 @@ diff --git a/node_modules/yuzic-engine/android/src/main/java/dev/yuzic/engine/Pl
          .build()
        session = librarySession
        onBrowseTreeChanged = {
+diff --git a/node_modules/yuzic-engine/android/src/main/cpp/CMakeLists.txt b/node_modules/yuzic-engine/android/src/main/cpp/CMakeLists.txt
+--- a/node_modules/yuzic-engine/android/src/main/cpp/CMakeLists.txt
++++ b/node_modules/yuzic-engine/android/src/main/cpp/CMakeLists.txt
+@@ -65,12 +65,20 @@ if(APPLE AND NOT ANDROID)
+   endif()
+ endif()
+-
++
++set(FFMPEG_CONFIGURE "${YUZIC_FFMPEG_SOURCE}/configure")
++if(CMAKE_HOST_WIN32)
++  find_program(FFMPEG_SHELL NAMES sh REQUIRED)
++  find_program(FFMPEG_HOST_CC NAMES gcc REQUIRED)
++  set(FFMPEG_CONFIGURE "${FFMPEG_SHELL}" "${YUZIC_FFMPEG_SOURCE}/configure")
++  list(APPEND FFMPEG_PLATFORM_ARGS "--host-cc=${FFMPEG_HOST_CC}")
++endif()
++
+ ExternalProject_Add(yuzic_ffmpeg
+   SOURCE_DIR "${YUZIC_FFMPEG_SOURCE}"
+   BINARY_DIR "${FFMPEG_BUILD}"
+   DOWNLOAD_COMMAND ""
+   UPDATE_COMMAND ""
+-  CONFIGURE_COMMAND ${FFMPEG_ENV} "${YUZIC_FFMPEG_SOURCE}/configure"
++  CONFIGURE_COMMAND ${FFMPEG_ENV} ${FFMPEG_CONFIGURE}
+     "--cc=${FFMPEG_CC}" ${FFMPEG_PLATFORM_ARGS}
+     "--extra-cflags=${CMAKE_C_FLAGS} -O3 -fPIC -fvisibility=hidden"
+     "--extra-ldflags=${CMAKE_EXE_LINKER_FLAGS}"
+@@ -98,8 +106,14 @@ add_dependencies(yuzic_alac_core yuzic_ffmpeg)
+ # two different names.
+ set(FFMPEG_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg-include")
+ file(MAKE_DIRECTORY "${FFMPEG_INCLUDE}")
+-file(CREATE_LINK "${YUZIC_FFMPEG_SOURCE}/libavcodec" "${FFMPEG_INCLUDE}/libavcodec" SYMBOLIC)
+-file(CREATE_LINK "${YUZIC_FFMPEG_SOURCE}/libavutil"  "${FFMPEG_INCLUDE}/libavutil"  SYMBOLIC)
++if(CMAKE_HOST_WIN32)
++  # Creating symlinks requires Developer Mode or elevated privileges on Windows.
++  file(COPY "${YUZIC_FFMPEG_SOURCE}/libavcodec" "${YUZIC_FFMPEG_SOURCE}/libavutil"
++    DESTINATION "${FFMPEG_INCLUDE}")
++else()
++  file(CREATE_LINK "${YUZIC_FFMPEG_SOURCE}/libavcodec" "${FFMPEG_INCLUDE}/libavcodec" SYMBOLIC)
++  file(CREATE_LINK "${YUZIC_FFMPEG_SOURCE}/libavutil"  "${FFMPEG_INCLUDE}/libavutil"  SYMBOLIC)
++endif()
+-
++
+ target_include_directories(yuzic_alac_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+   "${FFMPEG_INCLUDE}" "${FFMPEG_BUILD}")

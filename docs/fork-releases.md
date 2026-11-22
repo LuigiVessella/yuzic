@@ -57,7 +57,7 @@ Un tag identifica un commit, non le modifiche non committate. I checkpoint
 
 ## Strumenti Windows senza Android Studio
 
-Servono Node.js 22, JDK 17 e Android SDK da riga di comando con:
+Servono Node.js 22, JDK 17, MSYS2 UCRT64 (`make`, `sh` e `gcc`) e Android SDK da riga di comando con:
 
 ```text
 platforms;android-36
@@ -71,6 +71,12 @@ SDK in una posizione diversa da `%LOCALAPPDATA%/Android/Sdk`. `JAVA_HOME_17_X64`
 e `JAVA_HOME` sono riconosciuti. Sulla macchina originale vengono riconosciuti
 anche JDK e Node temporanei predisposti durante il debug; su una nuova macchina
 installare gli strumenti e aggiungere Node a `PATH`.
+Il builder aggiunge automaticamente `C:\msys64\ucrt64\bin` e `C:\msys64\usr\bin`
+al `PATH` per compilare FFmpeg in `yuzic-engine` 1.3.2. Se MSYS2 e installato
+altrove, impostare `FORK_MSYS2_ROOT` alla sua cartella principale. La CI installa
+gli stessi strumenti con `msys2/setup-msys2`.
+I file in `patches/` restano LF anche sui checkout Windows: la verifica delle
+patch usa `git apply --reverse --check` e richiede terminazioni coerenti.
 
 Per una prima installazione delle dipendenze:
 

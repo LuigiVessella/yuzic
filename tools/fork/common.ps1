@@ -37,8 +37,24 @@ function Initialize-ForkNode {
     if ($LASTEXITCODE -ne 0 -or [int]($nodeVersion -split '\.')[0] -lt 22) { throw 'Node.js 22 or newer is required for fork tooling.' }
 }
 
+function Initialize-ForkFfmpegTools {
+    $roots = @($env:FORK_MSYS2_ROOT, (Join-Path $env:SystemDrive 'msys64')) | Where-Object { $_ }
+    foreach ($root in $roots) {
+        $usrBin = Join-Path $root 'usr/bin'
+        $ucrtBin = Join-Path $root 'ucrt64/bin'
+        if ((Test-Path (Join-Path $usrBin 'make.exe')) -and (Test-Path (Join-Path $usrBin 'sh.exe')) -and (Test-Path (Join-Path $ucrtBin 'gcc.exe'))) {
+            $env:PATH = "$ucrtBin;$usrBin;$env:PATH"
+            return
+        }
+    }
+    if (-not (Get-Command make -ErrorAction SilentlyContinue) -or -not (Get-Command sh -ErrorAction SilentlyContinue) -or -not (Get-Command gcc -ErrorAction SilentlyContinue)) {
+        throw 'yuzic-engine 1.3.2 needs MSYS2 UCRT64 with make and gcc for FFmpeg. Install them or set FORK_MSYS2_ROOT.'
+    }
+}
+
 function Initialize-ForkTools {
     Initialize-ForkNode
+    Initialize-ForkFfmpegTools
     $portableJava = Join-Path $env:USERPROFILE '.jdks/yuzic-temurin17/jdk-17.0.21+9'
     $javaCandidates = @($env:FORK_JAVA_HOME, $portableJava, $env:JAVA_HOME_17_X64, $env:JAVA_HOME)
     $javaHome = $javaCandidates | Where-Object { $_ -and (Test-Path (Join-Path $_ 'bin/java.exe')) } | Select-Object -First 1
