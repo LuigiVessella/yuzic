@@ -17,9 +17,10 @@ type Props = {
   artist: Artist;
   onPress?: (artist: Artist) => void;
   rounded?: boolean;
+  subtitle?: string;
 };
 
-const ArtistRow: React.FC<Props> = ({ artist, onPress, rounded = false }) => {
+const ArtistRow: React.FC<Props> = ({ artist, onPress, rounded = false, subtitle }) => {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
@@ -36,7 +37,7 @@ const ArtistRow: React.FC<Props> = ({ artist, onPress, rounded = false }) => {
       <View style={styles.wrapper}>
         <MediaListRow
           title={artist.name}
-          subtitle={t('common.artist')}
+          subtitle={subtitle || t('common.artist')}
           cover={artist.cover}
           onPress={handlePress}
           roundedCover={rounded}

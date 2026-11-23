@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { notify } from '@/components/toast';
 import { ArrowDownToLine, Disc3, ListMusic, Music2, Users } from 'lucide-react-native'
 
+import SettingsToggleRow from '@/features/settings/components/SettingsToggleRow'
 import { DetailHeaderBar } from '@/components/DetailHeader'
 import EmptyState from '@/components/EmptyState'
 import { usePlayingActions } from '@/features/playback/PlayingContext'
@@ -94,7 +95,8 @@ const LibraryCollectionScreen: React.FC = () => {
     navigation.setParams({ sort: next } as never)
   }, [navigation])
 
-  const { items, isLoading } = useLibraryItems(type ?? null, sortOrder)
+  const [showCollaborations, setShowCollaborations] = useState(false)
+  const { items, isLoading } = useLibraryItems(type ?? null, sortOrder, showCollaborations)
   const { playSongs } = usePlayingActions()
 
   const title = type ? t(TITLE_KEY[type]) : t('library.title')
@@ -117,7 +119,7 @@ const LibraryCollectionScreen: React.FC = () => {
     }
   }, [playableTracks, playSongs, t])
 
-  const count = items.length > 0
+  const count = items.length > 0 || (type === 'artists' && !isLoading)
     ? t(type ? COUNT_KEY[type] : 'library.count.items', { count: items.length })
     : undefined
 
@@ -141,6 +143,13 @@ const LibraryCollectionScreen: React.FC = () => {
       style={[styles.screen, { backgroundColor: colors.background }]}
     >
       <DetailHeaderBar title={title} subtitle={count} />
+      {type === 'artists' && (
+        <SettingsToggleRow
+          label={t('library.collection.showCollaborations')}
+          value={showCollaborations}
+          onValueChange={setShowCollaborations}
+        />
+      )}
 
       {isLoading && items.length === 0 ? (
         <LoadingLibraryList collection={type ?? null} />

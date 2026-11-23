@@ -227,7 +227,7 @@ describe('GetReviewSheet', () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
     // The preselected row means Get is already actionable without tapping a
     // row first — but the tap on Get is still required for the job to start.
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
     expect(slskdDownloadAlbum).toHaveBeenCalledTimes(1);
     expect(lidarrDownloadAlbum).not.toHaveBeenCalled();
@@ -250,7 +250,7 @@ describe('GetReviewSheet', () => {
     const dismiss = jest.spyOn(sheetRef.current, 'dismiss');
 
     await fireEvent.press(view.getByTestId('row-Lidarr'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(lidarrDownloadAlbum).toHaveBeenCalledTimes(1);
@@ -261,7 +261,7 @@ describe('GetReviewSheet', () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
 
     await fireEvent.press(view.getByTestId('row-Lidarr'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(mockDispatch).not.toHaveBeenCalledWith(
@@ -274,7 +274,7 @@ describe('GetReviewSheet', () => {
 
     await fireEvent.press(view.getByTestId('row-Lidarr'));
     await fireEvent.press(view.getByText('externalAlbum.review.saveAsDefaultAlbums'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(mockDispatch).toHaveBeenCalledWith({
@@ -288,7 +288,7 @@ describe('GetReviewSheet', () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
 
     await fireEvent.press(view.getByTestId('row-Lidarr'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(mockDispatch).toHaveBeenCalledWith(
@@ -304,7 +304,7 @@ describe('GetReviewSheet', () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
 
     await fireEvent.press(view.getByTestId('row-Lidarr'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(mockDispatch).not.toHaveBeenCalledWith(
@@ -349,7 +349,7 @@ describe('GetReviewSheet', () => {
     await fireEvent.press(view.getByTestId('row-Lidarr'));
     await flush();
     await fireEvent.press(view.getByTestId('row-Lossless'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(lidarrDownloadAlbum).toHaveBeenCalledWith(
@@ -369,7 +369,7 @@ describe('GetReviewSheet', () => {
     await flush();
     await fireEvent.press(view.getByTestId('row-Lossless'));
     await fireEvent.press(view.getByText('externalAlbum.review.saveAsDefaultAlbums'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(mockDispatch).toHaveBeenCalledWith({
@@ -407,14 +407,25 @@ describe('GetReviewSheet with a downloader that takes only tracks', () => {
     };
   });
 
+  it('sends only the selected track for a track Get', async () => {
+    const track = { title: 'First', artist: 'Artist' };
+    const view = await render(<GetReviewSheet album={externalAlbum} track={track} sheetRef={{ current: null } as any} />);
+    await fireEvent.press(view.getByTestId('row-SoulSync'));
+    expect(view.queryByText('externalAlbum.review.perTrack')).toBeNull();
+    await fireEvent.press(view.getByText('externalAlbum.menu.getSong'));
+    await flush();
+    expect(soulsyncDownloadTrack.mock.calls.map(([, req]) => req)).toEqual([track]);
+  });
+
   it('offers it for an album, and requests the album as its tracks', async () => {
     const { notify } = require('@/components/toast');
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
 
     await fireEvent.press(view.getByTestId('row-SoulSync'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
+    expect(view.getByText('externalAlbum.review.perTrack')).toBeTruthy();
     expect(mockLoadAlbumTracks).toHaveBeenCalledWith(externalAlbum);
     expect(soulsyncDownloadTrack.mock.calls.map(([, req]) => req)).toEqual([
       { title: 'First', artist: 'External Artist' },
@@ -441,7 +452,7 @@ describe('GetReviewSheet with a downloader that takes only tracks', () => {
     const dismiss = jest.spyOn(sheetRef.current, 'dismiss');
 
     await fireEvent.press(view.getByTestId('row-SoulSync'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
 
     expect(dismiss).toHaveBeenCalledTimes(1);
 
@@ -455,7 +466,7 @@ describe('GetReviewSheet with a downloader that takes only tracks', () => {
     const view = await render(<GetReviewSheet album={externalAlbum} sheetRef={{ current: null } as any} />);
 
     await fireEvent.press(view.getByTestId('row-SoulSync'));
-    await fireEvent.press(view.getByText('externalAlbum.review.confirmGet'));
+    await fireEvent.press(view.getByText('externalAlbum.menu.get'));
     await flush();
 
     expect(soulsyncDownloadTrack).not.toHaveBeenCalled();

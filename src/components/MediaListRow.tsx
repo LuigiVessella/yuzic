@@ -14,6 +14,7 @@ type Props = {
   title: string;
   subtitle?: string;
   cover: CoverSource;
+  fallbackCover?: CoverSource;
   onPress?: () => void;
   disabled?: boolean;
   /** Rendered inside the touchable before the cover, e.g. a track index */
@@ -46,6 +47,7 @@ export default function MediaListRow({
   title,
   subtitle,
   cover,
+  fallbackCover,
   onPress,
   disabled,
   leading,
@@ -102,6 +104,7 @@ export default function MediaListRow({
           {showCover && (
             <MediaImage
               cover={cover}
+              fallbackCover={fallbackCover}
               size={isCompact ? 'thumb' : 'grid'}
               style={[
                 styles.cover,

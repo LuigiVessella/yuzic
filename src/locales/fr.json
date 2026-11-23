@@ -133,7 +133,8 @@
         "english": "Anglais",
         "japanese": "Japonais",
         "french": "Français",
-        "chinese": "Chinois"
+        "chinese": "Chinois",
+        "italian": "Italien"
       },
       "showQualityBadge": "Afficher le badge qualité",
       "showQualityBadgeSubtext": "Format et débit sur le lecteur.",
@@ -734,6 +735,7 @@
     }
   },
   "common": {
+    "unknownArtist": "Artiste inconnu",
     "cancel": "Annuler",
     "delete": "Supprimer",
     "next": "Suivant",
@@ -932,6 +934,7 @@
       "browse": "Explorer"
     },
     "collection": {
+      "showCollaborations": "Afficher les collaborations",
       "empty": "Rien ici pour l'instant.",
       "downloadedEmpty": "Rien de téléchargé pour l’instant. Téléchargez un album ou une playlist depuis ses options pour l’écouter sans connexion.",
       "playFailed": "Impossible de lancer la lecture."
@@ -1294,8 +1297,8 @@
       "title": "Album externe",
       "downloadToServer": "Télécharger sur le serveur",
       "downloadSong": "Télécharger le titre",
-      "get": "Récupérer",
-      "getSong": "Récupérer le titre",
+      "get": "Obtenir l’album",
+      "getSong": "Obtenir le morceau",
       "want": "Souhaiter",
       "wanted": "Souhaité",
       "arrived": "{{title}} est maintenant dans votre bibliothèque",
@@ -1311,7 +1314,7 @@
       "saveAsDefaultAlbums": "Enregistrer par défaut pour les albums",
       "saveAsDefaultTracks": "Enregistrer par défaut pour les titres",
       "qualityProfile": "Profil de qualité",
-      "confirmGet": "Récupérer"
+      "perTrack": "Une demande sera envoyée pour chaque morceau."
     },
     "serverStatus": {
       "onServer": "Dans la bibliothèque",

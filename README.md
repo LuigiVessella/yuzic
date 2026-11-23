@@ -21,6 +21,7 @@
 - **A complete library** — browse artists, albums, tracks, playlists, and genres; search on-device or through your server, and rate what you play where your server keeps ratings.
 - **Play it elsewhere** — use AirPlay on iOS, DLNA/UPnP on your network, or your server's jukebox where available.
 - **Private by default** — optional integrations stay off until you enable them.
+- **App language** — choose English, French, Italian, Japanese, or Chinese in Settings → Appearance.
 
 ## Screenshots
 

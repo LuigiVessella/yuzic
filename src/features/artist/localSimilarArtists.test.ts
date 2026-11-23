@@ -39,6 +39,13 @@ describe('findArtistsWithSharedGenres', () => {
     expect(result.map(a => a.nativeId)).toEqual(['a', 'b'])
   })
 
+  it('finds collaborators credited as album artists', () => {
+    const release = album('1', 'target', 'Target Artist', ['rap'])
+    release.albumArtists = [release.artist, artistRef('guest', 'Guest Artist')]
+    expect(findArtistsWithSharedGenres(asLocalId('target'), [release]))
+      .toEqual([expect.objectContaining({ nativeId: 'guest' })])
+  })
+
   it('excludes the target artist itself', () => {
     const albums = [
       album('1', 'target', 'Target Artist', ['rock']),

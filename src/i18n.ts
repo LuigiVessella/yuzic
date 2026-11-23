@@ -4,12 +4,14 @@ import en from '@/locales/en.json';
 import ja from '@/locales/ja.json';
 import fr from '@/locales/fr.json';
 import zh from '@/locales/zh.json';
+import it from '@/locales/it.json';
 
 const resources = {
   en: { translation: en },
   ja: { translation: ja },
   fr: { translation: fr },
   zh: { translation: zh },
+  it: { translation: it },
 };
 
 if (!i18n.isInitialized) {

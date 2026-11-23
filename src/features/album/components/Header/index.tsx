@@ -121,9 +121,12 @@ function LocalMetaRow({ album, songs }: { album: Album | null; songs: Song[] }) 
   );
 
   const metadataItems = useMemo(() => {
-    const items: { label: string; type: 'artist' | 'genre' | 'info' }[] = [];
+    const items: { label: string; type: 'artist' | 'genre' | 'info'; artistId?: string }[] = [];
     if (!album) return items;
-    if (album.artist.name) items.push({ label: album.artist.name, type: 'artist' });
+    for (const artist of album.albumArtists ?? [album.artist]) {
+      const label = artist.name && artist.name !== 'Unknown Artist' ? artist.name : t('common.unknownArtist');
+      items.push({ label, type: 'artist', artistId: artist.nativeId });
+    }
     const genre = album.genres?.[0]?.trim();
     if (genre) items.push({ label: genre, type: 'genre' });
     const year = Number(album.year);
@@ -146,8 +149,8 @@ function LocalMetaRow({ album, songs }: { album: Album | null; songs: Song[] }) 
       {metadataItems.map((item, index) => (
         <React.Fragment key={`${item.label}-${index}`}>
           {index > 0 && <DetailMetaDot />}
-          {item.type === 'artist' ? (
-            <Touchable onPress={() => navigation.push('artistView', { id: album.artist.nativeId })}>
+          {item.type === 'artist' && item.artistId ? (
+            <Touchable onPress={() => navigation.push('artistView', { id: item.artistId })}>
               <DetailMetaText>{item.label}</DetailMetaText>
             </Touchable>
           ) : item.type === 'genre' ? (

@@ -93,6 +93,14 @@ describe('relationships', () => {
     expect(albumsByArtist(store, artistId('a2')).map(a => a.nativeId)).toEqual(['al3']);
   });
 
+  it('indexes a joint release once under both artists alongside a distinct edition', () => {
+    const release = album('first', 'a1');
+    release.albumArtists = [release.artist, artist('a2')];
+    const edition = { ...release, nativeId: 'second', localId: albumId('second') };
+    const joint = buildCatalogStore({ ...catalog, albums: [release, release, edition] });
+    for (const id of ['a1', 'a2']) expect(albumsByArtistNativeId(joint, id)).toEqual([release, edition]);
+  });
+
   it('answers songs by album', () => {
     expect(songsByAlbum(store, albumId('al1')).map(s => s.nativeId)).toEqual(['s1', 's2']);
   });

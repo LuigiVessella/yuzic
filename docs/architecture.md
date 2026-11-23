@@ -778,6 +778,26 @@ bodies' worth of divergence.
   difference the row layer already encodes but the list bodies keep explicit.
   Converging them is a deferred, higher-risk option, not an accident.
 
+The Artists collection initially hides explicit featuring credits when the lead
+artist has one unambiguous entry. Semicolon credits require an unambiguous
+entry for each participant. The collection switch reveals the full list.
+The index uses the server's ordered album-artist references when available,
+so a joint release appears on each artist's page. Older cached albums use
+their primary artist. Collections collapse repeats of the same server ID.
+Quick Picks can use artwork from the corresponding library album when a
+track thumbnail is missing or fails to load.
+
+Artist pages use the library artist when the route has its server ID or
+when an external result matches a library identity. A name-only match
+requires an unambiguous library artist; it is rechecked as the library
+hydrates. Explicit external routes retain their source identity. Related
+artists share one shelf, with library copies preferred and distinct external
+identities preserved.
+Owned releases and missing releases each have a direct route to their
+full list. External releases use the shared source-aware album resolver.
+When a catalogue has same-name artist profiles, an owned album can identify
+the correct profile for the missing-release list; ties remain unresolved.
+
 ## 7. Providers and capabilities
 
 A feature asks *what can do this*, never *which product it is*. Two mechanisms

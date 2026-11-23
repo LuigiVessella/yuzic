@@ -8,6 +8,7 @@ import en from './en.json'
 import fr from './fr.json'
 import ja from './ja.json'
 import zh from './zh.json'
+import italian from './it.json'
 
 /** Every leaf key, dotted — `library.count.albums_one`, not the objects above it. */
 function leafKeys(value: unknown, prefix = ''): string[] {
@@ -28,7 +29,7 @@ function pluralBase(key: string): string {
   return key.replace(/_(zero|one|two|few|many|other)$/, '')
 }
 
-const translations = { fr, ja, zh }
+const translations = { fr, ja, zh, it: italian }
 
 /**
  * A key present in English and missing elsewhere falls back to English at
@@ -81,7 +82,7 @@ const T_CALL = /\bt\(\s*['"]([A-Za-z0-9_.]+\.[A-Za-z0-9_.]+)['"]/g
  * no translator was ever shown. Seven surfaces had drifted that way: the tab
  * bar, the Downloads screen, the display sheet and both Home banners among
  * them. The test above could not see any of it, since it measures the other
- * three locales against English and English was missing them too.
+ * other locales against English and English was missing them too.
  */
 it('has an English string for every key the app asks for', () => {
   const known = new Set(leafKeys(en).map(pluralBase))

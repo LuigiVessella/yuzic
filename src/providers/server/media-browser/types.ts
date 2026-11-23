@@ -53,6 +53,7 @@ export interface MediaBrowserItem {
   Name?: string;
   Type?: string;
   ArtistItems?: MediaBrowserArtistRef[];
+  AlbumArtists?: MediaBrowserArtistRef[];
   Artists?: string[];
   AlbumId?: string;
   AlbumArtist?: string;

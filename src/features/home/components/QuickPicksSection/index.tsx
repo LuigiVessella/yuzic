@@ -17,6 +17,7 @@ import {
   selectSongPlayCounts,
   selectSongLastPlayedAt,
 } from '@/state/redux/selectors/statsSelectors';
+import { useAlbumsById } from '@/features/album/useAlbumsById';
 import { useSongsById } from '@/features/song/useSongsById';
 import { seededShuffle } from '@/features/home/hooks/useDailyLayout';
 import { useStableList } from '@/features/home/hooks/useStableList';
@@ -66,6 +67,7 @@ export default function QuickPicksSection({ refreshKey = 0 }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const icons = useIconSize();
+  const albums = useAlbumsById();
   const { playSong } = usePlayingActions();
   const { resolvePlayableSong } = usePlayableSongResolver();
   const itemCount = useSelector(selectHomeShelfItemCount);
@@ -134,6 +136,7 @@ export default function QuickPicksSection({ refreshKey = 0 }: Props) {
                 title={song.title}
                 subtitle={song.artist.name}
                 cover={song.cover}
+                fallbackCover={albums.get(song.album.nativeId)?.cover ?? song.album.cover}
                 onPress={() => { void handlePress(song); }}
                 variant="compact"
                 style={styles.rowWrapper}

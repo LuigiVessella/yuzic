@@ -56,6 +56,15 @@ import { mapSong as mapMbSong } from '@/providers/integration/musicbrainz/mapSon
 import { mapRecording } from '@/providers/integration/musicbrainz/mapRecording';
 import * as lastfmApi from '@/providers/integration/lastfm';
 
+it('distinguishes same-name Deezer artists using uniquely credited albums', async () => {
+  const a = makeArtist({ nativeId: 'a' });
+  const b = makeArtist({ nativeId: 'b' });
+  (deezerApi.searchDeezerArtists as jest.Mock).mockResolvedValue([a, a, b]);
+  (deezerApi.searchDeezerAlbums as jest.Mock).mockResolvedValue([makeAlbum({ artist: b, title: 'Eclissi' })]);
+  const result = await deezerProvider.capabilities['catalogue.search']?.('artist', { songs: false, artists: true, albums: true });
+  expect(result?.artists.map(row => [row.entity.nativeId, row.subtitle])).toEqual([['a', 'Deezer #a'], ['b', 'Eclissi']]);
+});
+
 afterEach(() => {
   jest.clearAllMocks();
 });
@@ -169,7 +178,16 @@ describe('musicbrainz provider', () => {
   });
 
   describe('with a server address set', () => {
-    afterEach(() => {
+    it('distinguishes same-name Deezer artists using uniquely credited albums', async () => {
+  const a = makeArtist({ nativeId: 'a' });
+  const b = makeArtist({ nativeId: 'b' });
+  (deezerApi.searchDeezerArtists as jest.Mock).mockResolvedValue([a, a, b]);
+  (deezerApi.searchDeezerAlbums as jest.Mock).mockResolvedValue([makeAlbum({ artist: b, title: 'Eclissi' })]);
+  const result = await deezerProvider.capabilities['catalogue.search']?.('artist', { songs: false, artists: true, albums: true });
+  expect(result?.artists.map(row => [row.entity.nativeId, row.subtitle])).toEqual([['a', 'Deezer #a'], ['b', 'Eclissi']]);
+});
+
+afterEach(() => {
       mockServerUrls = {};
     });
 

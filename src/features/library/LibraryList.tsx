@@ -19,6 +19,7 @@ import { useTheme } from '@/features/theme/useTheme'
 
 type Props = {
   items: LibraryItem[]
+  onAlbumPress?: React.ComponentProps<typeof AlbumItem>['onPress']
   sortOrder: SortOrder
   onSortChange: (order: SortOrder) => void
   sortLabel: string
@@ -45,6 +46,7 @@ const LibraryList: React.FC<Props> = ({
   onSortChange,
   sortLabel,
   header,
+  onAlbumPress,
   collection = null,
   refresh,
 }) => {
@@ -84,6 +86,7 @@ const LibraryList: React.FC<Props> = ({
         return (
           <AlbumItem
             album={item.data}
+            onPress={onAlbumPress}
             showTypeLabel={showTypeLabel}
             isGridView={isGridView}
             gridWidth={gridWidth}
@@ -120,7 +123,7 @@ const LibraryList: React.FC<Props> = ({
           />
         )
     }
-  }, [isGridView, gridWidth, showTypeLabel])
+  }, [isGridView, gridWidth, showTypeLabel, onAlbumPress])
 
   return (
     <>

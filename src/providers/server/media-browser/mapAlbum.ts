@@ -41,8 +41,17 @@ interface MapAlbumContext {
 export function mapAlbum(dto: MediaBrowserItem, context: MapAlbumContext): Album {
   const { provenance, brand } = context;
   const nativeId = dto.Id ?? '';
-  const artistItem = dto.ArtistItems?.[0];
-  const artistName = artistItem?.Name ?? dto.AlbumArtist;
+  const albumArtist = dto.AlbumArtist?.trim();
+  const matching = dto.ArtistItems?.filter(item => item.Name?.trim() === albumArtist);
+  const credits = dto.AlbumArtists?.filter(item => item.Name?.trim());
+  const fallback = albumArtist
+    ? { Name: albumArtist, Id: dto.AlbumArtistId || (matching?.length === 1 ? matching[0].Id : undefined) }
+    : dto.ArtistItems?.[0];
+  const artists = (credits?.length ? credits : [fallback]).map(item =>
+    artistRef(provenance, item?.Id, item?.Name,
+      coverOrMissing(buildCoverWithTag(brand, item?.Id, undefined), artistCoverSubject(item?.Name)))
+  );
+  const artistName = artists[0].name;
   const externalIds = externalIdsOf(dto);
   const cover = itemCover(brand, dto, albumCoverSubject(dto.Name, artistName, externalIds));
 
@@ -59,12 +68,8 @@ export function mapAlbum(dto: MediaBrowserItem, context: MapAlbumContext): Album
     // and correctly ends up with none. Dropping this made the Playing screen's
     // "About the artist" card fall back to a `{ kind: 'none' }` cover, which is
     // not nullish and so did not fall through to the song's cover at all.
-    artist: artistRef(
-      provenance,
-      artistItem?.Id,
-      artistName,
-      coverOrMissing(buildCoverWithTag(brand, artistItem?.Id, undefined), artistCoverSubject(artistName))
-    ),
+    artist: artists[0],
+    ...(artists.length > 1 && { albumArtists: artists }),
     year: dto.ProductionYear,
     releaseDate: dto.PremiereDate,
     // Neither brand's item schema carries a release-type field; everything in

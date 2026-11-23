@@ -4,7 +4,7 @@ import { Text } from '@/components/Text';
 import { Ellipsis, Link, ArrowDownCircle } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import type { Album } from '@/domain/entities/Album';
+import { albumArtistLabel, type Album } from '@/domain/entities/Album';
 import AlbumOptions from '@/components/options/AlbumOptions';
 import IconActionButton from '@/components/IconActionButton';
 import MediaListRow from '@/components/MediaListRow';
@@ -41,6 +41,7 @@ const AlbumRow: React.FC<Props> = ({
   const { t } = useTranslation();
   const { colors } = useTheme();
   const icons = useIconSize();
+  const subtitle = subtextOverride ?? albumArtistLabel(album, t('common.unknownArtist'));
   const optionsSheetRef = useSheetRef();
 
   // Disabled (no-op) for library albums — useExternalAlbumStatus already
@@ -72,7 +73,7 @@ const AlbumRow: React.FC<Props> = ({
       <>
         <MediaListRow
           title={album.title}
-          subtitle={subtextOverride ?? album.artist.name}
+          subtitle={subtitle}
           subtitleTrailing={statusBadge}
           cover={album.cover}
           onPress={handlePress}
@@ -95,7 +96,7 @@ const AlbumRow: React.FC<Props> = ({
     <View style={styles.wrapper}>
       <MediaListRow
         title={album.title}
-        subtitle={subtextOverride ?? album.artist.name}
+        subtitle={subtitle}
         cover={album.cover}
         onPress={handlePress}
         trailing={

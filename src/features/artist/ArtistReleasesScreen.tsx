@@ -1,3 +1,4 @@
+import { useMatchedNavigation } from '@/features/sources/useMatchedNavigation'
 import React, { useMemo, useState } from 'react'
 import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -30,6 +31,7 @@ type ReleaseScope = 'owned' | 'external'
 type Params = ArtistRouteParams & { group?: ReleaseGroup; scope?: ReleaseScope }
 
 export default function ArtistReleasesScreen() {
+  const { navigateToAlbum } = useMatchedNavigation()
   const { params } = useRoute<{ key: string; name: string; params: Params }>()
   const { group = 'albums', scope = 'owned', ...artistParams } = params ?? {}
   const { t } = useTranslation()
@@ -72,6 +74,7 @@ export default function ArtistReleasesScreen() {
 
       <LibraryList
         items={items}
+        onAlbumPress={scope === 'external' ? navigateToAlbum : undefined}
         sortOrder={sortOrder}
         onSortChange={setSortOrder}
         sortLabel={sortLabels[sortOrder]}

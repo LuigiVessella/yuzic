@@ -503,12 +503,12 @@ No auth. `src/providers/integration/deezer/`.
 
 | Endpoint | Used for | Cache |
 | --- | --- | --- |
-| `GET /search/artist` | Resolving an artist by name; Deezer results in search; Metadata › Artwork backup for an artist photo (used only when the lead artist's name matches — "A feat. B" looks up A) | 12h |
+| `GET /search/artist` | Resolving an artist by name; checking same-name profiles against owned albums; Deezer results in search; Metadata › Artwork backup for an artist photo (used only when the lead artist's name matches — "A feat. B" looks up A) | 12h |
 | `GET /search/album` | Resolving an album; Deezer results in search; preview lookup; Metadata › Artwork backup for an album cover (same title and lead artist only) | 12h |
 | `GET /artist/{id}` | External artist page | 7d |
 | `GET /search/track` | Track results in Search | 12h |
 | `GET /track/{id}` | Reopening a track from Search history | -- |
-| `GET /artist/{id}/albums` | Discography on an external artist page | 1d |
+| `GET /artist/{id}/albums` | Discography on an artist page; matching an owned album to an ambiguous artist profile | 1d |
 | `GET /artist/{id}/related` | Similar artists | 7d |
 | `GET /artist/{id}/top` | Top tracks on an artist page | 1d |
 | `GET /album/{id}` | External album page | 1d |
@@ -682,6 +682,12 @@ not the Downloads folder used by `/request` unless those paths are explicitly
 configured to coincide.
 The public `POST /api/v1/wishlist/process` retries the entire wishlist, not
 one requested track, and is therefore not used as a substitute.
+
+The Get confirmation identifies the requested unit and flags albums sent as
+individual tracks. To investigate duplicate Jellyfin albums, compare item IDs,
+paths, track lists and album-artist tags in the affected library. Separate
+physical copies can have matching titles and artwork. After correcting verified
+file tags, scan the affected server library and refresh the collection in Yuzic.
 
 ### Downtify — your instance, `/api`
 

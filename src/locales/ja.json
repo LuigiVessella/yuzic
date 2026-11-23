@@ -133,7 +133,8 @@
         "english": "英語",
         "japanese": "日本語",
         "french": "フランス語",
-        "chinese": "中国語"
+        "chinese": "中国語",
+        "italian": "イタリア語"
       },
       "showQualityBadge": "音質バッジを表示",
       "showQualityBadgeSubtext": "プレーヤーに形式とビットレートを表示。",
@@ -732,6 +733,7 @@
     }
   },
   "common": {
+    "unknownArtist": "不明なアーティスト",
     "cancel": "キャンセル",
     "delete": "削除",
     "next": "次へ",
@@ -930,6 +932,7 @@
       "browse": "ブラウズ"
     },
     "collection": {
+      "showCollaborations": "コラボレーションを表示",
       "empty": "まだ何もありません。",
       "downloadedEmpty": "まだダウンロードしたものはありません。アルバムやプレイリストのオプションからダウンロードすると、オフラインで再生できます。",
       "playFailed": "再生を開始できませんでした。"
@@ -1288,7 +1291,7 @@
       "title": "外部アルバム",
       "downloadToServer": "サーバーにダウンロード",
       "downloadSong": "曲をダウンロード",
-      "get": "取得",
+      "get": "アルバムを取得",
       "getSong": "曲を取得",
       "want": "ウォンツに追加",
       "wanted": "ウォンツ済み",
@@ -1305,7 +1308,7 @@
       "saveAsDefaultAlbums": "アルバムの既定として保存",
       "saveAsDefaultTracks": "曲の既定として保存",
       "qualityProfile": "品質プロファイル",
-      "confirmGet": "取得"
+      "perTrack": "曲ごとにリクエストを送信します。"
     },
     "serverStatus": {
       "onServer": "ライブラリ内",

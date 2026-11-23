@@ -133,7 +133,8 @@
         "english": "English",
         "japanese": "Japanese",
         "french": "French",
-        "chinese": "Chinese"
+        "chinese": "Chinese",
+        "italian": "Italian"
       },
       "display": "Display",
       "playing": "Playing",
@@ -734,6 +735,7 @@
     }
   },
   "common": {
+    "unknownArtist": "Unknown artist",
     "cancel": "Cancel",
     "delete": "Delete",
     "next": "Next",
@@ -932,6 +934,7 @@
       "browse": "Browse"
     },
     "collection": {
+      "showCollaborations": "Show collaborations",
       "empty": "Nothing here yet.",
       "downloadedEmpty": "Nothing downloaded yet. Download an album or playlist from its options to play it without a connection.",
       "playFailed": "Couldn't start playback."
@@ -1300,8 +1303,8 @@
       "title": "External Album",
       "downloadToServer": "Download to Server",
       "downloadSong": "Download Song",
-      "get": "Get",
-      "getSong": "Get Song",
+      "get": "Get album",
+      "getSong": "Get track",
       "want": "Want",
       "wanted": "Wanted",
       "arrived": "{{title}} is now in your library",
@@ -1317,7 +1320,7 @@
       "saveAsDefaultAlbums": "Save as default for albums",
       "saveAsDefaultTracks": "Save as default for tracks",
       "qualityProfile": "Quality Profile",
-      "confirmGet": "Get"
+      "perTrack": "One request will be sent per track."
     },
     "serverStatus": {
       "onServer": "In Library",

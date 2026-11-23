@@ -63,19 +63,15 @@ export function useArtistScreenModel(params: ArtistRouteParams): ArtistScreenMod
   const { artists } = useArtists();
   const { tracks: libraryTracks } = useTracks();
 
-  // Re-resolved only when the route's own identity params change (a genuine
-  // navigation to a different artist) — not when `artists` changes on its
-  // own, e.g. a library sync completing in the background must not flip an
-  // already-rendered external-only view into local mode underneath the
-  // user.
+  // Recheck after library hydration or sync; explicit external routes keep
+  // their source identity through forceExternal.
   const resolvedLocalId = useMemo(() => {
     if (id) return id;
     if (forceExternal === 'true') return null;
     if (!name) return null;
     const match = matchArtistToLibrary({ name, externalIds: mbid ? { mbid } : {} }, artists);
     return match?.nativeId ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, forceExternal, name, artistId, mbid]);
+  }, [id, forceExternal, name, mbid, artists]);
 
   const local = useLocalArtist(resolvedLocalId);
   const externalEnabled = !resolvedLocalId && !!(artistId || mbid || name);
@@ -92,6 +88,7 @@ export function useArtistScreenModel(params: ArtistRouteParams): ArtistScreenMod
     !!artist,
     artist?.externalIds,
     isLocal ? undefined : artist?.provenance.origin === 'integration' ? artist.provenance.providerId : source,
+    isLocal ? localAlbums : [],
   );
 
   const songCountByAlbumId = useMemo(() => {

@@ -81,7 +81,7 @@ export function ExternalResolutionProvider({ children }: { children: React.React
     // The record says which artist it is: go there rather than asking.
     const known = knownArtistRoute(item, browsableSources);
     if (known) {
-      router.push({ pathname: '/artistView', params: known });
+      router.push({ pathname: '/artistView', params: { ...known, forceExternal: 'true' } });
       return;
     }
 
@@ -99,7 +99,7 @@ export function ExternalResolutionProvider({ children }: { children: React.React
       return;
     }
     if (direct) {
-      router.push({ pathname: '/artistView', params: { source: direct.source, artistId: direct.id, name: direct.name } });
+      router.push({ pathname: '/artistView', params: { source: direct.source, artistId: direct.id, name: direct.name, forceExternal: 'true' } });
       return;
     }
     setArtistPickerItems(all.map(r => ({ ...r, kind: 'artist' as const })));
@@ -137,7 +137,7 @@ export function ExternalResolutionProvider({ children }: { children: React.React
         onSelect={item => {
           artistPickerRef.current?.dismiss();
           const artistName = item.kind === 'artist' ? item.name : '';
-          router.push({ pathname: '/artistView', params: { source: item.source, artistId: item.id, name: artistName } });
+          router.push({ pathname: '/artistView', params: { source: item.source, artistId: item.id, name: artistName, forceExternal: 'true' } });
         }}
       />
     </ExternalResolutionContext.Provider>

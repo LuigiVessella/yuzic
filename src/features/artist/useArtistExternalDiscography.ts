@@ -8,6 +8,8 @@ import { useIsOffline } from '@/features/connectivity/useIsOffline';
 import type { Album } from '@/domain/entities/Album';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import type { SourceId } from '@/features/sources/registry';
+import { matchAlbumToLibrary } from '@/features/library/matchToLibrary';
+import { normalizeName } from '@/domain/identity/matching';
 
 type ArtistExternalDiscography = {
   albums: Album[];
@@ -26,6 +28,7 @@ export function useArtistExternalDiscography(
   enabled: boolean,
   knownIds?: ExternalIds,
   sourceId?: string,
+  libraryAlbums: readonly Album[] = [],
 ) {
   const sources = useBrowsableExternalSources();
   const isOffline = useIsOffline();
@@ -35,14 +38,33 @@ export function useArtistExternalDiscography(
   const canLoad = enabled && !isOffline && !!artistName && enabledSources.length > 0;
 
   const query = useInfiniteQuery({
-    queryKey: [QueryKeys.LocalArtistExternalDiscography, artistName, sourceIds, knownIds, serverUrls],
+    queryKey: [QueryKeys.LocalArtistExternalDiscography, artistName, sourceIds, knownIds, serverUrls,
+      libraryAlbums.map(album => [album.localId, album.title, album.artist.name])],
     enabled: canLoad,
     staleTime: 1000 * 60 * 60 * 24,
     initialPageParam: null as Cursor[] | null,
     queryFn: async ({ pageParam }) => {
       const resolvedSources = pageParam ? [] : await Promise.allSettled(enabledSources.map(async source => {
         const artistId = knownIds && source.artistIdOf(knownIds);
-        const resolved = artistId ? { id: artistId } : await source.resolveArtist(artistName!);
+        let resolved = artistId ? { id: artistId } : await source.resolveArtist(artistName!);
+        // A name can have multiple catalogue profiles. Use an owned release
+        // to identify the right one; a tie stays unresolved.
+        if (!resolved && libraryAlbums.length) {
+          const candidates = (await source.resolveArtistCandidates(artistName!, 5))
+            .filter(candidate => normalizeName(candidate.name) === normalizeName(artistName!));
+          const scored = await Promise.allSettled(candidates.map(async candidate => {
+            const releases = await source.fetchArtistAlbums(candidate.id, PAGE_SIZE, artistName!, 0);
+            const matches = releases.filter(album => matchAlbumToLibrary({
+              externalIds: album.externalIds, title: album.title, artistName: album.artist.name,
+            }, libraryAlbums)).length;
+            return { candidate, matches };
+          }));
+          const ranked = scored.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
+            .sort((a, b) => b.matches - a.matches);
+          if (ranked[0]?.matches > 0 && ranked[0].matches > (ranked[1]?.matches ?? 0)) {
+            resolved = { id: ranked[0].candidate.id };
+          }
+        }
         return resolved ? { source: source.id, artistId: resolved.id, offset: 0 } : null;
       }));
       if (resolvedSources.length && resolvedSources.every(result => result.status === 'rejected')) {

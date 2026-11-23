@@ -275,6 +275,9 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
           <Text style={[styles.requestingValue, { color: colors.secondary }]} numberOfLines={2}>
             {requestingQuery}
           </Text>
+          {unit === 'album' && selected && !selected.def.downloadAlbum && (
+            <Text style={[styles.requestingLabel, { color: colors.subtext }]}>{t('externalAlbum.review.perTrack')}</Text>
+          )}
         </View>
 
         {selected && (
@@ -314,7 +317,7 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
               ? albumStatus.kind === 'in_library'
                 ? t('externalAlbum.menu.inLibrary')
                 : t(`wants.status.${albumStatus.kind}`, { progress: albumStatus.kind === 'downloading' ? albumStatus.progress : undefined })
-              : t('externalAlbum.review.confirmGet')}
+              : unit === 'album' ? t('externalAlbum.menu.get') : t('externalAlbum.menu.getSong')}
           </Text>
         </Touchable>
       </BottomSheetScrollView>

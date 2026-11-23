@@ -20,6 +20,18 @@ const fullDto: MediaBrowserItem = {
 };
 
 describe('mapAlbum', () => {
+  it('uses the ordered album credits even if the first track artist differs', () => {
+    const dto = { ...fullDto, AlbumArtists: [{ Id: 'a', Name: 'Guè' }, { Id: 'b', Name: 'Marracash' }] };
+    const album = mapAlbum(dto, { provenance, brand: JELLYFIN_BRAND });
+    expect(album.albumArtists?.map(a => a.nativeId)).toEqual(['a', 'b']);
+    expect(album.artist.name).toBe('Guè');
+  });
+
+  it('does not attach a different performer id to a textual album credit', () => {
+    const album = mapAlbum({ ...fullDto, AlbumArtist: 'Someone else' }, { provenance, brand: EMBY_BRAND });
+    expect(album.artist).toMatchObject({ name: 'Someone else', nativeId: '' });
+  });
+
   it('produces a complete album from a full DTO', () => {
     const album = mapAlbum(fullDto, { provenance, brand: JELLYFIN_BRAND });
 

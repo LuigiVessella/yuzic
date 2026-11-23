@@ -198,9 +198,13 @@ function indexAlbums(source: readonly Album[]): AlbumIndexes {
   const albumIdsByArtist = new Map<LocalId, LocalId[]>();
   const albumIdsByGenre = new Map<string, LocalId[]>();
   for (const album of source) {
+    if (albums.has(album.localId)) continue;
     albums.set(album.localId, album);
     if (!albumByNativeId.has(album.nativeId)) albumByNativeId.set(album.nativeId, album);
-    pushInto(albumIdsByArtist, album.artist.localId, album.localId);
+    const artists = album.albumArtists ?? [album.artist];
+    for (const id of new Set(artists.filter(artist => artist.nativeId).map(artist => artist.localId))) {
+      pushInto(albumIdsByArtist, id, album.localId);
+    }
     for (const genre of album.genres) pushInto(albumIdsByGenre, genre, album.localId);
   }
 

@@ -11,10 +11,7 @@ type LocalArtistSummary = {
   cover: CoverSource;
 };
 
-// A cheap, always-available approximation of "similar artists" — other
-// library artists sharing genre tags with this one. Materially weaker than a
-// real similarity graph (Deezer/Last.fm), which is why it's labeled and
-// rendered as its own sub-group rather than merged into their results.
+// Related library artists ranked by the genre tags they share.
 export function findArtistsWithSharedGenres(
   targetArtistLocalId: LocalId,
   albums: Album[],
@@ -24,18 +21,14 @@ export function findArtistsWithSharedGenres(
   const artistMeta = new Map<LocalId, LocalArtistSummary>();
 
   for (const album of albums) {
-    const artistLocalId = album.artist.localId;
-    if (!artistMeta.has(artistLocalId)) {
-      artistMeta.set(artistLocalId, {
-        localId: artistLocalId,
-        nativeId: album.artist.nativeId,
-        name: album.artist.name,
-        cover: album.artist.cover,
-      });
+    for (const artist of album.albumArtists ?? [album.artist]) {
+      if (!artist.nativeId) continue;
+      const { localId, nativeId, name, cover } = artist;
+      if (!artistMeta.has(localId)) artistMeta.set(localId, { localId, nativeId, name, cover });
+      const genres = genresByArtist.get(localId) ?? new Set<string>();
+      album.genres.forEach(genre => genres.add(genre));
+      genresByArtist.set(localId, genres);
     }
-    const genres = genresByArtist.get(artistLocalId) ?? new Set<string>();
-    album.genres.forEach(g => genres.add(g));
-    genresByArtist.set(artistLocalId, genres);
   }
 
   const targetGenres = genresByArtist.get(targetArtistLocalId);
@@ -53,20 +46,4 @@ export function findArtistsWithSharedGenres(
     .sort((a, b) => b.overlap - a.overlap)
     .slice(0, limit)
     .map(candidate => artistMeta.get(candidate.localId)!);
-}
-
-/**
- * Drops server-similar entries that the local-similar shelf already covers.
- *
- * Both usually surface the same shared-genre neighbours, and showing two
- * identical rows for the same artist is worse than showing one — the
- * server-native shelf loses the tie since local-similar is the cheaper,
- * always-available signal.
- */
-export function dedupeServerSimilar<T extends { localId: LocalId }>(
-  serverSimilar: readonly T[],
-  localSimilar: readonly { localId: LocalId }[]
-): T[] {
-  const localIds = new Set(localSimilar.map(a => a.localId));
-  return serverSimilar.filter(a => !localIds.has(a.localId));
 }

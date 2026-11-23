@@ -52,10 +52,12 @@ const INITIALS_SIZE: Record<'thumb' | 'grid' | 'detail' | 'background', number> 
 
 export function MediaImage({
   cover,
+  fallbackCover,
   size,
   style,
 }: {
   cover: CoverSource;
+  fallbackCover?: CoverSource;
   size: 'thumb' | 'grid' | 'detail' | 'background';
   style?: any;
 }) {
@@ -113,6 +115,9 @@ export function MediaImage({
   // tile — issue #290, a library of live recordings that will never have
   // covers — the stand-in is derived from what the cover is of, so each album
   // gets its own colour and keeps it.
+  if (!sourceUri && fallbackCover && fallbackCover.kind !== 'none') {
+    return <MediaImage cover={fallbackCover} size={size} style={style} />;
+  }
   if (!sourceUri) {
     return (
       <View

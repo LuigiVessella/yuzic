@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { uniqueCatalogEntries, withoutCollaborationCredits } from './catalogEntries'
 import { useSelector } from 'react-redux'
 
 import { useAlbums } from '@/features/album/useAlbums'
@@ -45,7 +46,8 @@ type LibraryItemsResult = {
 
 export function useLibraryItems(
   type: LibraryCollectionType | null,
-  sortOrder: SortOrder
+  sortOrder: SortOrder,
+  showCollaborations = true
 ): LibraryItemsResult {
   const songLastPlayed = useSelector(selectSongLastPlayedAt)
   const songPlays = useSelector(selectSongPlayCounts)
@@ -56,8 +58,13 @@ export function useLibraryItems(
   const playlistLastPlayed = useSelector(selectPlaylistLastPlayedAt)
   const playlistPlays = useSelector(selectPlaylistPlayCounts)
 
-  const { albums, isLoading: albumsLoading } = useAlbums()
-  const { artists, isLoading: artistsLoading } = useArtists()
+  const { albums: rawAlbums, isLoading: albumsLoading } = useAlbums()
+  const { artists: rawArtists, isLoading: artistsLoading } = useArtists()
+  const albums = useMemo(() => uniqueCatalogEntries(rawAlbums), [rawAlbums])
+  const artists = useMemo(() => {
+    const unique = uniqueCatalogEntries(rawArtists)
+    return type === 'artists' && !showCollaborations ? withoutCollaborationCredits(unique) : unique
+  }, [rawArtists, showCollaborations, type])
   const { playlists, isLoading: playlistsLoading } = usePlaylists()
   const { tracks, isLoading: tracksLoading } = useTracks()
   const { getAllDownloadedCollections, getAllDownloadedTracks } = useDownload()

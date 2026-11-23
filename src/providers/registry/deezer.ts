@@ -14,6 +14,7 @@ import {
   getDeezerAlbum,
   getDeezerTrack,
 } from '@/providers/integration/deezer';
+import { normalizeName } from '@/domain/identity/matching';
 import { sourceColor } from '@/constants/design';
 import type { IntegrationProvider } from '../contracts/Provider';
 
@@ -34,11 +35,19 @@ export const deezerProvider: IntegrationProvider = {
         kinds.artists ? searchDeezerArtists(query, 4, signal) : Promise.resolve([]),
         kinds.albums ? searchDeezerAlbums(query, 6, signal) : Promise.resolve([]),
       ]);
+      const profiles = [...new Map(artists.map(artist => [artist.nativeId, artist])).values()];
+      const artistRows = profiles.map(entity => {
+        const peers = profiles.filter(profile => normalizeName(profile.name) === normalizeName(entity.name));
+        if (peers.length === 1) return { entity, subtitle: '' };
+        const peerAlbums = albums.filter(album => peers.some(peer => peer.nativeId === album.artist.nativeId));
+        const album = peerAlbums.find(candidate => candidate.artist.nativeId === entity.nativeId &&
+          !peerAlbums.some(other => other.artist.nativeId !== entity.nativeId &&
+            normalizeName(other.title) === normalizeName(candidate.title)));
+        return { entity, subtitle: album?.title || `Deezer #${entity.nativeId}` };
+      });
       return {
         songs: songs.map(entity => ({ entity, subtitle: entity.artist.name })),
-        // Deezer has no second line worth showing for an artist, and an
-        // album's is its artist. Both are this catalogue's own choice.
-        artists: artists.map(entity => ({ entity, subtitle: '' })),
+        artists: artistRows,
         albums: albums.map(entity => ({ entity, subtitle: entity.artist.name })),
       };
     },
