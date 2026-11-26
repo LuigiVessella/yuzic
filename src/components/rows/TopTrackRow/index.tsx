@@ -80,6 +80,7 @@ function TopTrackRow({ song, index, artistName, onPress }: Props) {
         title={song.title}
         subtitle={[artistName, duration].filter(Boolean).join(' • ')}
         cover={song.cover}
+        fallbackCover={song.album.cover}
         onPress={onPress}
         variant="compact"
         leading={

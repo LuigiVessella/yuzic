@@ -62,6 +62,8 @@ export interface PlaybackEventDeps {
   /** Tell the listener playback stopped because nothing would play. */
   notifyStopped: () => void;
   notifyError: () => void;
+  connectionProblem: (resource: PlayableResource) => 'offline' | 'serverUnreachable' | null;
+  setConnectionInterrupted: (interrupted: boolean) => void;
   /** Structured, because this is the record #324/#320/#318 are diagnosed from. */
   logFailure: (info: Fields) => void;
   /** Injected so the toast throttle can be tested without waiting it out. */
@@ -69,6 +71,8 @@ export interface PlaybackEventDeps {
 }
 
 interface PlaybackEventHandlers {
+  retryConnection: () => boolean;
+  clearConnectionRetry: () => void;
   /** A failure arrived from the player. */
   onError: (event: Omit<Extract<BackendEvent, { type: 'error' }>, 'type'>) => void;
   /**
@@ -102,9 +106,42 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
   let lastErrorToastAt = 0;
   /** Tracks given up on since anything last played — see `MAX_DEAD_TRACKS_IN_A_ROW`. */
   let deadTracksInARow = 0;
+  let interrupted: { resource: PlayableResource; index: number; position: number } | null = null;
+
+  const clearConnectionRetry = () => {
+    if (!interrupted) return;
+    interrupted = null;
+    deps.setConnectionInterrupted(false);
+  };
 
   return {
+    clearConnectionRetry,
+    retryConnection() {
+      if (!interrupted) return false;
+      const { resource, index, position } = interrupted;
+      if (deps.currentResource() !== resource || deps.currentIndex() !== index) {
+        clearConnectionRetry();
+        return false;
+      }
+      if (deps.connectionProblem(resource)) return true;
+      const queue = deps.queue();
+      // Use the refreshed URLs that are available. Keep the original entries
+      // for everything else, including transient media with no URL resolver.
+      const fresh = queue.map(entry => deps.refreshResource(entry.song) ?? entry);
+      clearConnectionRetry();
+      lastRecoveryAttemptedId = null;
+      stallResumes = { songId: null, count: 0 };
+      deadTracksInARow = 0;
+      deps.replaceQueue(fresh, queue.map((_, i) => i), index);
+      deps.setCurrentResource(fresh[index]);
+      const backend = deps.backend();
+      backend.setMediaItems(deps.toMediaItems(fresh), index);
+      if (position > 0) backend.seekTo(position);
+      backend.play();
+      return true;
+    },
     onPlaying() {
+      clearConnectionRetry();
       lastRecoveryAttemptedId = null;
       deadTracksInARow = 0;
     },
@@ -112,6 +149,11 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
     onError(event) {
       const resource = deps.currentResource();
       const song = resource?.song;
+      const remoteStream = resource && sourceKind(resource) === 'remote' && song?.contentKind !== 'preview';
+      const connectionProblem = remoteStream ? deps.connectionProblem(resource) : null;
+      const nativeNetworkError = event.domain === 'ERROR_CODE_IO_NETWORK_CONNECTION_FAILED'
+        || event.domain === 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT'
+        || (event.domain === 'NSURLErrorDomain' && (event.underlyingCode === -1009 || event.underlyingCode === -1005 || event.underlyingCode === -1001));
 
       deps.logFailure({
         code: event.code,
@@ -125,6 +167,7 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         // by eye. Kept beside `detail` rather than replacing it, because the
         // sentence still says which track and what the system called it.
         operation: event.operation,
+        connectionProblem: connectionProblem ?? undefined,
         domain: event.domain,
         underlyingCode: event.underlyingCode,
         // Only when it disagrees with the track the app believes is current.
@@ -146,6 +189,18 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
             : song?.provenance?.providerId,
       });
 
+      if (resource && connectionProblem) {
+        const index = deps.currentIndex();
+        if (interrupted?.resource !== resource || interrupted.index !== index) {
+          interrupted = { resource, index, position: deps.backend().getProgress().position };
+          deps.setConnectionInterrupted(true);
+          deps.backend().pause();
+        }
+        return;
+      }
+      if (interrupted?.resource === resource && interrupted.index === deps.currentIndex()) return;
+      clearConnectionRetry();
+
       // A preview URL is issued once and cannot be rebuilt from an id, so
       // there is nothing to refresh and nothing to retry — see
       // `hasReissuableUrl`. Anything else here would be a retry loop.
@@ -165,6 +220,14 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         song?.localId,
         { positionSeconds, stallCount: stallResumes.count }
       );
+
+      if (resource && remoteStream && nativeNetworkError && decision.action === 'escalate') {
+        interrupted = { resource, index: deps.currentIndex(), position: positionSeconds };
+        deps.logFailure({ songId: song?.nativeId, connectionProblem: 'streamNetworkError' });
+        deps.setConnectionInterrupted(true);
+        deps.backend().pause();
+        return;
+      }
 
       if (decision.action === 'resume') {
         stallResumes = { songId, count: decision.nextStallCount };
@@ -194,6 +257,7 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         deps.replaceQueue(fresh, kept.map(entry => entry.index), nextIndex);
         deps.setCurrentResource(fresh[nextIndex]);
         deps.backend().setMediaItems(deps.toMediaItems(fresh), nextIndex);
+        if (nativeNetworkError && positionSeconds > 0) deps.backend().seekTo(positionSeconds);
         deps.backend().play();
         return;
       }

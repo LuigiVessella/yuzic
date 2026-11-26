@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   headerText: { flex: 1 },
-  title: { ...typography.rowTitle },
+  title: { ...typography.rowTitle, fontWeight: '500' },
   subtitle: { ...typography.rowSubtitle, marginTop: spacing.xxs },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -256,6 +256,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
+    minHeight: 52,
   },
   optionDimmed: {
     opacity: stateLayer.secondaryOpacity,

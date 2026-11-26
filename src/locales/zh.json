@@ -1023,6 +1023,8 @@
     "placeholder": "搜索音乐、歌手或播放列表...",
     "noResults": "未找到结果",
     "searchError": "部分来源无法连接 — 结果可能不完整",
+    "sourceUnavailable": "来源不可用",
+    "retrySource": "重试 {{source}}",
     "searchLocalOnly": "正在显示可用结果 — 部分来源处于离线状态",
     "recentSearches": "最近搜索",
     "clearRecent": "清除",

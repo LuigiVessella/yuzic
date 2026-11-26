@@ -9,12 +9,23 @@ import { useIsOffline } from '@/features/connectivity/useIsOffline';
 import { useServerReachable } from '@/features/connectivity/useServerReachable';
 
 /** Read the shared reachability signal; never start a second probe or poll. */
-export default function PlayingConnectionStatus({ onDownloads }: { onDownloads: () => void }) {
+export default function PlayingConnectionStatus({ onDownloads, onRetry }: {
+  onDownloads: () => void;
+  onRetry?: () => Promise<void>;
+}) {
   const { t } = useTranslation();
   const isOffline = useIsOffline();
   const serverReachable = useServerReachable();
   const banner = connectivityBanner({ isOffline, serverReachable });
-  if (!banner) return null;
+  if (!banner) {
+    return onRetry ? (
+      <View style={styles.container} testID="playing-connection-status">
+        <Touchable accessibilityRole="button" style={styles.action} onPress={() => { void onRetry(); }}>
+          <Text style={styles.link}>{t('common.retry')}</Text>
+        </Touchable>
+      </View>
+    ) : null;
+  }
 
   return (
     <View style={styles.container} testID="playing-connection-status">

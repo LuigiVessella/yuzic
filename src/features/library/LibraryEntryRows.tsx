@@ -83,7 +83,7 @@ const LibraryEntryRows: React.FC = () => {
     navigation.push('libraryCollectionView', { type })
 
   const size = 20
-  const color = colors.subtext
+  const color = colors.themeColor
 
   // Provider-only surfaces stay out of the list on servers that can't back
   // them — a Jellyfin user should never see a Radio row that goes nowhere.
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     ...typography.label,
     paddingHorizontal: spacing.page,
-    paddingTop: spacing.roomy,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
   },
   row: {
@@ -291,5 +291,5 @@ const styles = StyleSheet.create({
   },
   labels: { flexShrink: 1, minWidth: 0, gap: spacing.xxs },
   count: { ...typography.caption },
-  label: { ...typography.rowTitle },
+  label: { ...typography.rowTitle, fontWeight: '500' },
 })

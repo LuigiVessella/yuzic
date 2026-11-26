@@ -181,7 +181,7 @@ export async function searchExternalLeg(
   query: string,
   entityTypes: SearchEntityType[],
   signal?: AbortSignal,
-  onSourceReady?: (results: SearchResult[]) => void,
+  onSourceSettled?: (sourceId: string, results: SearchResult[] | null) => void,
 ): Promise<SearchResult[]> {
   if (!query.trim() || sourceIds.length === 0) return [];
   const kinds = {
@@ -249,10 +249,15 @@ export async function searchExternalLeg(
 
   // Publish each source as soon as it answers, without waiting for the others.
   const settled = await Promise.allSettled(offers.map(async offer => {
-    const found = await offer.invoke(query, kinds, signal);
-    const mapped = mapFound(offer.providerId, found);
-    onSourceReady?.(mapped);
-    return mapped;
+    try {
+      const found = await offer.invoke(query, kinds, signal);
+      const mapped = mapFound(offer.providerId, found);
+      onSourceSettled?.(offer.providerId, mapped);
+      return mapped;
+    } catch (error) {
+      if (!signal?.aborted) onSourceSettled?.(offer.providerId, null);
+      throw error;
+    }
   }));
   const answered = settled.flatMap(outcome => outcome.status === 'fulfilled' ? [outcome.value] : []);
   if (answered.length === 0) {

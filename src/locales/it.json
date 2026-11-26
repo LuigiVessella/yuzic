@@ -1027,6 +1027,8 @@
     "placeholder": "Cerca musica, artisti o playlist...",
     "noResults": "Nessun risultato trovato",
     "searchError": "Impossibile raggiungere alcune fonti: i risultati potrebbero essere incompleti",
+    "sourceUnavailable": "Fonte non disponibile",
+    "retrySource": "Riprova {{source}}",
     "searchLocalOnly": "Risultati disponibili: alcune fonti sono offline",
     "recentSearches": "Ricerche recenti",
     "clearRecent": "Chiaro",

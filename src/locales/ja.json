@@ -1023,6 +1023,8 @@
     "placeholder": "音楽、アーティスト、プレイリストを検索...",
     "noResults": "結果が見つかりません",
     "searchError": "一部のソースに接続できません — 結果が不完全な場合があります",
+    "sourceUnavailable": "ソースに接続できません",
+    "retrySource": "{{source}}を再試行",
     "searchLocalOnly": "利用可能な結果を表示しています — 一部のソースはオフラインです",
     "recentSearches": "最近の検索",
     "clearRecent": "クリア",

@@ -6,7 +6,6 @@ import { Text } from '@/components/Text';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
-import TurboImage from 'react-native-turbo-image';
 import { MediaImage } from '@/components/MediaImage';
 import { buildCover } from '@/providers/registry/covers';
 import { useTheme } from '@/features/theme/useTheme';
@@ -40,24 +39,15 @@ const NO_COVER: CoverSource = { kind: 'none' };
  * with that. The artist is still named by the round photo below, which is
  * content rather than backdrop.
  */
-const HeroBackdrop: React.FC<{ coverUri: string | null; muted: string }> = ({
+const HeroBackdrop: React.FC<{ coverUri: string | null; cover: CoverSource; muted: string }> = ({
   coverUri,
+  cover,
   muted,
 }) => {
-  if (!coverUri) {
-    return <View testID="artist-hero-slab" style={[StyleSheet.absoluteFill, { backgroundColor: muted }]} />;
-  }
-
   return (
-    <TurboImage
-      testID="artist-hero-photo"
-      source={{ uri: coverUri }}
-      style={[StyleSheet.absoluteFill, { left: -50, right: -50 }]}
-      resizeMode="cover"
-      blur={Platform.OS === 'ios' ? 20 : 10}
-      fadeDuration={300}
-      cachePolicy="dataCache"
-    />
+    <View testID={coverUri ? 'artist-hero-photo' : 'artist-hero-slab'} style={[StyleSheet.absoluteFill, { backgroundColor: muted }]}>
+      <MediaImage cover={cover} size="background" style={StyleSheet.absoluteFill} />
+    </View>
   );
 };
 
@@ -91,26 +81,19 @@ const ArtistHeader: React.FC<Props> = ({ model, showNavigation = true }) => {
 
   return (
     <>
-      {/* 300pt of height exists to give the blurred art presence. With no art
-          drawn it is a screen of nothing before the artist's name, so over a
-          background image the hero shrinks to what the round cover needs —
-          which also lets more of that image show. */}
+      {/* A compact portrait; over a user background only the round photo
+          remains, so the chosen wallpaper stays visible. */}
       <View
         style={[
           styles.heroBlock,
           { height: barInset + (overImage ? COVER_SIZE : ARTIST_HERO_HEIGHT) },
         ]}
       >
-        {/* The hero's own art and the fade that lands it on the page. Absent
-            over a background image: there is nothing to land it on, and the
-            page already has a picture behind it.
-
-            Only the art is clipped — it overscans sideways — while the round
-            cover hangs below the hero on purpose. Clipping both together is
-            what used to flatten the cover's foot. */}
+        {/* The photograph fades into a plain page; wallpaper keeps its
+            existing transparent treatment. */}
         {!overImage && (
           <View style={styles.fullBleedWrapper}>
-            <HeroBackdrop coverUri={coverUri} muted={colors.muted} />
+            <HeroBackdrop coverUri={coverUri} cover={displayCover} muted={colors.muted} />
 
             <LinearGradient
               testID="artist-hero-fade"
@@ -120,13 +103,13 @@ const ArtistHeader: React.FC<Props> = ({ model, showNavigation = true }) => {
           </View>
         )}
 
-        <View style={[styles.centeredCoverContainer, { borderRadius: rad.pill }]}>
+        {overImage && <View style={[styles.centeredCoverContainer, { borderRadius: rad.pill }]}>
           <MediaImage
             cover={displayCover}
             size="detail"
             style={[styles.centeredCover, { borderRadius: rad.pill }]}
           />
-        </View>
+        </View>}
 
         {showNavigation && (
           <View style={styles.header}>
@@ -151,6 +134,9 @@ const ArtistHeader: React.FC<Props> = ({ model, showNavigation = true }) => {
 
       <View style={{ paddingHorizontal: spacing.lg }} onLayout={onTitleLayout}>
         <View style={styles.content}>
+          <Text style={[styles.sourceLabel, { color: colors.subtext }]}>
+            {t(isLocal ? 'externalAlbum.menu.inLibrary' : 'common.artist')}
+          </Text>
           <Text
             style={[styles.artistName, { color: colors.secondary }]}
             numberOfLines={1}
@@ -189,24 +175,14 @@ export const ArtistHeaderBar: React.FC<Props> = ({ model }) => {
 
 export default ArtistHeader;
 
-/** The blurred cover behind an artist's name, before the floating bar's inset. */
-const ARTIST_HERO_HEIGHT = 300;
+/** Portrait height before the floating bar's inset. */
+const ARTIST_HERO_HEIGHT = 240;
 
 /** The round cover's own size, which is all the hero needs when it draws no art. */
 const COVER_SIZE = 120;
 
-/**
- * How far the round cover hangs below the hero.
- *
- * The content below clears it by this much on top of its own margin. It used
- * to clear nothing, because the hero clipped the overhang away and there was
- * nothing to clear — the cover was a circle with a flat foot and the name sat
- * where the rest of it should have been.
- */
-const COVER_OVERHANG = 32;
-
 const styles = StyleSheet.create({
-  /** Lays out the hero and carries the round cover that overhangs its foot. */
+  /** Portrait area, or avatar space over a user background. */
   heroBlock: {
     width: '100%',
     height: ARTIST_HERO_HEIGHT,
@@ -220,7 +196,7 @@ const styles = StyleSheet.create({
   },
   centeredCoverContainer: {
     position: 'absolute',
-    bottom: -COVER_OVERHANG,
+    bottom: 0,
     width: COVER_SIZE,
     height: COVER_SIZE,
     overflow: 'hidden',
@@ -251,18 +227,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: {
-    alignItems: 'center',
-    marginTop: spacing.lg + COVER_OVERHANG,
+    alignItems: 'flex-start',
+    marginTop: spacing.lg,
     marginBottom: spacing.lg,
   },
   artistName: {
     ...typography.display,
     fontWeight: '600',
-    textAlign: 'center',
+    textAlign: 'left',
     width: '100%',
   },
   artworkSourceLine: {
     ...typography.micro,
     marginTop: spacing.xxs,
+  },
+  sourceLabel: {
+    ...typography.caption,
+    marginBottom: spacing.xs,
   },
 });

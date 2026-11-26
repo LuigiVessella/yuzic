@@ -44,7 +44,7 @@ const PlayingMain: React.FC<PlayingMainProps> = ({
   const { coverSize, columnWidth, rowWidth, columnGap } = layout;
   const split = layout.mode === 'split';
   const inline = layout.inline;
-  const { currentSong } = usePlayingState();
+  const { currentSong, currentIndex } = usePlayingState();
   const rad = useRadius();
   const coverCorner = layout.bleed ? 0 : rad.card;
   const showQualityBadge = useSelector(selectShowQualityBadge);
@@ -107,7 +107,7 @@ const PlayingMain: React.FC<PlayingMainProps> = ({
        * A radio station's position is meaningless, and the "-0:00 remaining"
        * label under an infinite stream reads as broken. */}
       {hasDuration(currentSong.contentKind) && (
-        <PlayingProgressSection songDuration={currentSong.durationSeconds} />
+        <PlayingProgressSection key={`${currentSong.localId}:${currentIndex}`} songDuration={currentSong.durationSeconds} />
       )}
 
       {children}
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   coverAbove: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
     // Centred in the column: the compact player's cover is narrower than it.
     alignSelf: 'center',
   },
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   title: {
-    ...typography.sectionTitle,
+    ...typography.screenTitle,
     color: onDark.text,
     marginBottom: spacing.xs,
   },

@@ -33,6 +33,26 @@ const fullDto: MediaBrowserItem = {
 };
 
 describe('mapSong', () => {
+  it('keeps album artwork separate from the track image and preserves the album title', () => {
+    const song = mapSong({ ...fullDto, Album: 'Sinatra' }, { provenance, brand: JELLYFIN_BRAND });
+    expect(song.cover).toEqual({ kind: 'jellyfin', itemId: 'tr-100' });
+    expect(song.album).toMatchObject({ title: 'Sinatra', cover: { kind: 'jellyfin', itemId: 'al-3' } });
+  });
+
+  it('keeps an album fallback when the track has no primary image', () => {
+    const song = mapSong({ ...fullDto, Album: 'Sinatra', ImageTags: {}, AlbumPrimaryImageTag: undefined },
+      { provenance, brand: JELLYFIN_BRAND });
+    expect(song.cover.kind).toBe('none');
+    expect(song.album.cover).toEqual({ kind: 'jellyfin', itemId: 'al-3' });
+  });
+
+  it('uses the album payload artwork when provided', () => {
+    const cover = { kind: 'url', url: 'https://example.test/known-album.jpg' } as const;
+    const song = mapSong(fullDto, { provenance, brand: JELLYFIN_BRAND, cover, albumTitle: 'Known album' });
+    expect(song.cover).toEqual(cover);
+    expect(song.album).toMatchObject({ title: 'Known album', cover });
+  });
+
   it('produces a complete song from a full DTO', () => {
     const song = mapSong(fullDto, { provenance, brand: JELLYFIN_BRAND });
 

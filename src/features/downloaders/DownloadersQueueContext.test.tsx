@@ -16,6 +16,7 @@ var mockStates: DownloaderState[] = [];
 /* eslint-enable no-var */
 
 jest.mock('@/providers/registry/useApi', () => ({ useApi: () => mockApi }));
+jest.mock('react-redux', () => ({ useSelector: () => 'srv' }));
 jest.mock('@/features/library/useSync', () => ({ useSync: () => mockSyncResult }));
 jest.mock('@/features/connectivity/useAppActive', () => ({ useAppActive: () => true }));
 jest.mock('@/features/connectivity/useIsOffline', () => ({ useIsOffline: () => false }));
@@ -137,4 +138,38 @@ describe('DownloadersQueueProvider in-flight count', () => {
     expect(result.current.queues.map((q) => q.items.length)).toEqual([2, 1]);
     expect(result.current.totalInFlight).toBe(1);
   });
+});
+
+it('ignores a pending response after the downloader address changes', async () => {
+  const old = deferred<DownloaderQueueItem[]>();
+  mockStates = [state('lidarr', 'Lidarr', () => old.promise)];
+  const { result, rerender } = await renderHook(() => useDownloadersQueue(), { wrapper });
+
+  const next = state('lidarr', 'Lidarr', async () => [item('new')]);
+  next.config.serverUrl = 'http://new-lidarr';
+  mockStates = [next];
+  await rerender(undefined);
+  await waitFor(() => expect(result.current.queues[0]?.items[0]?.id).toBe('new'));
+  await act(async () => { old.resolve([item('old')]); });
+  expect(result.current.queues[0]?.items[0]?.id).toBe('new');
+});
+
+it('batches completions on two downloaders into one server scan', async () => {
+  jest.useFakeTimers();
+  try {
+    mockApi.auth.startScan.mockClear();
+    mockSyncResult.sync.mockClear();
+    const lidarr = jest.fn().mockResolvedValueOnce([item('a')]).mockResolvedValue([]);
+    const slskd = jest.fn().mockResolvedValueOnce([item('b')]).mockResolvedValue([]);
+    mockStates = [state('lidarr', 'Lidarr', lidarr), state('slskd', 'slskd', slskd)];
+    const { result, unmount } = await renderHook(() => useDownloadersQueue(), { wrapper });
+    await waitFor(() => expect(result.current.totalInFlight).toBe(2));
+    await act(async () => { result.current.refresh(); });
+    await act(async () => { jest.advanceTimersByTime(60_500); });
+    expect(mockApi.auth.startScan).toHaveBeenCalledTimes(1);
+    expect(mockSyncResult.sync).toHaveBeenCalledTimes(2);
+    await unmount();
+  } finally {
+    jest.useRealTimers();
+  }
 });

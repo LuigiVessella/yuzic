@@ -143,7 +143,7 @@ function PlayingBarBase() {
             onPressIn={prepare}
             onPress={handleExpand}
           >
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: colors.card, borderRadius: rad.card }]}>
               <View style={styles.topRowWrapper}>
                 <View style={styles.topRow}>
                   <Animated.View
@@ -152,6 +152,7 @@ function PlayingBarBase() {
                     {currentSong?.cover ? (
                       <MediaImage
                         cover={currentSong.cover}
+                        fallbackCover={currentSong.album.cover}
                         size="thumb"
                         style={styles.coverFill}
                       />
@@ -246,17 +247,20 @@ function PlayingBarBase() {
 }
 
 const styles = StyleSheet.create({
-  // No margins, radius or shadow: the bar is the top row of the tab dock,
-  // not a card resting on it. The dock owns the surface and the hairline.
+  // An inset surface inside the existing dock; expansion and gestures still
+  // measure the same artwork view.
   container: {
     flexDirection: 'column',
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+    overflow: 'hidden',
     // Equal above the row and below it. Tighter than the gap around the
     // 40pt cover was: the art grows into this padding rather than pushing
     // the row taller, so the cover gains prominence and the bar does not
     // gain height.
     paddingTop: spacing.sm,
     paddingBottom: 0,
-    paddingHorizontal: spacing.page,
+    paddingHorizontal: spacing.sm,
   },
   topRowWrapper: {
     justifyContent: 'center',

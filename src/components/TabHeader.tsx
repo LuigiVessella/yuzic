@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Text } from '@/components/Text';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { useRadius } from '@/features/theme/useRadius';
  * account avatar. */
 type Props = {
   title: string;
+  branded?: boolean;
   username?: string;
   onAccountPress: () => void;
   /**
@@ -29,7 +30,7 @@ type Props = {
   action?: { label: string; onPress: () => void; testID?: string };
 };
 
-export default function TabHeader({ title, username, onAccountPress, action }: Props) {
+export default function TabHeader({ title, branded = false, username, onAccountPress, action }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const rad = useRadius();
@@ -43,7 +44,10 @@ export default function TabHeader({ title, username, onAccountPress, action }: P
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: colors.secondary }]}>{title}</Text>
+      <View style={styles.identity}>
+        {branded && <Image source={require('../../assets/images/logo-fork-blue.png')} style={styles.logo} accessible={false} />}
+        <Text style={[styles.title, { color: colors.secondary }]}>{title}</Text>
+      </View>
 
       <View style={styles.actions}>
         {action ? (
@@ -91,6 +95,8 @@ const styles = StyleSheet.create({
   title: {
     ...typography.screenTitle,
   },
+  identity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  logo: { width: 28, height: 28 },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',

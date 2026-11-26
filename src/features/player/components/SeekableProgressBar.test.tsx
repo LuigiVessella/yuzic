@@ -37,6 +37,7 @@ jest.mock('react-native-gesture-handler', () => {
   };
 });
 jest.mock('@/features/theme/useRadius', () => ({ useRadius: () => ({ pill: 999 }) }));
+jest.mock('@/features/theme/useReducedMotion', () => ({ useReducedMotion: () => false }));
 
 import { SeekableProgressBar } from './SeekableProgressBar';
 
@@ -102,9 +103,10 @@ it('previews the scrub position without seeking until release', async () => {
   const onSeek = jest.fn();
   const onPreview = jest.fn();
   await bar(onSeek, onPreview);
-  await act(async () => { mockHandlers.pan.onStart({ x: 20 }); });
+  await act(async () => { mockHandlers.pan.onStart({ x: 21 }); });
+  await act(async () => { mockHandlers.pan.onUpdate({ x: 21.1 }); });
   await act(async () => { mockHandlers.pan.onUpdate({ x: 100 }); });
-  expect(onPreview.mock.calls).toEqual([[30], [150]]);
+  expect(onPreview.mock.calls).toEqual([[31.5], [150]]);
   expect(onSeek).not.toHaveBeenCalled();
   await act(async () => { mockHandlers.pan.onEnd({ x: 100 }); });
   expect(onSeek).toHaveBeenCalledWith(150);

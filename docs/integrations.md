@@ -159,6 +159,12 @@ mapper reports a real gap rather than a URL that 404s — Navidrome 0.64+ omits
 `coverArt`, Jellyfin/Emby report no `ImageTags.Primary` — and names the item,
 so cover resolution can try the library's copy and then the Artwork backups.
 
+MediaBrowser track references retain the payload's `Album` title and an
+independent parent-album cover. A failed track image can therefore use album
+artwork without retrying the same track URL. Album-detail responses still
+provide their known cover directly; existing cached tracks use the library
+album fallback where available until the next sync updates their references.
+
 ### Client certificates (mTLS)
 
 For a server behind a reverse proxy that asks the *client* to prove who it is.
@@ -365,6 +371,11 @@ per-server, and shows its own live transfer queue in the app. When a transfer
 finishes, the app nudges your music server to rescan so the new music appears
 without a manual pull (`src/features/downloaders/DownloadersQueueContext.tsx`).
 
+Queue reads keep their last successful snapshot through temporary errors and
+back off per downloader from 30 seconds up to 4 minutes. A manual refresh can
+retry sooner. Responses from an old connection are ignored. Completions
+observed within 500 ms share a server scan and its catalog refreshes.
+
 | Downloader | Label in app | Albums | Individual tracks | Settings |
 | --- | --- | --- | --- | --- |
 | [Lidarr](https://lidarr.audio) | Lidarr | ✅ | — (Lidarr is album-oriented) | Server URL + API key (Lidarr → Settings → General) |
@@ -406,6 +417,8 @@ configured makes **no** requests to any of these hosts.
   a section that doesn't render — rather than an error state, because none of
   it is load-bearing. Downloader and scrobble calls surface a real error,
   because the user asked for those directly.
+  Unified search shows an unavailable source by name and can retry that source
+  while keeping the results already received.
 - **Auth.** Bearer/token headers where the service needs one (see the tables);
   Deezer and MusicBrainz are unauthenticated; Last.fm uses a bundled read-only
   `api_key` with no signing or session.
@@ -684,7 +697,10 @@ The public `POST /api/v1/wishlist/process` retries the entire wishlist, not
 one requested track, and is therefore not used as a substitute.
 
 The Get confirmation identifies the requested unit and flags albums sent as
-individual tracks. To investigate duplicate Jellyfin albums, compare item IDs,
+individual tracks. Playlist recommendations (including Favourites) pass the
+selected song to the track Get confirmation, not the containing album.
+Only connected downloaders that support individual tracks enable that action.
+To investigate duplicate Jellyfin albums, compare item IDs,
 paths, track lists and album-artist tags in the affected library. Separate
 physical copies can have matching titles and artwork. After correcting verified
 file tags, scan the affected server library and refresh the collection in Yuzic.

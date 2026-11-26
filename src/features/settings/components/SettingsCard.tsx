@@ -35,6 +35,6 @@ export default SettingsCard;
 const styles = StyleSheet.create({
   card: {
     overflow: 'hidden',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
 });

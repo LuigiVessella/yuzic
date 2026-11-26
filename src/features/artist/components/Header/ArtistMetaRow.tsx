@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     marginTop: spacing.tight,
     flexWrap: 'wrap',
   },

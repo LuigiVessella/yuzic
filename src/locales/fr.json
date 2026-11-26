@@ -1027,6 +1027,8 @@
     "placeholder": "Rechercher de la musique, des artistes ou des listes de lecture...",
     "noResults": "Aucun résultat trouvé",
     "searchError": "Certaines sources sont injoignables — les résultats peuvent être incomplets",
+    "sourceUnavailable": "Source indisponible",
+    "retrySource": "Réessayer {{source}}",
     "searchLocalOnly": "Résultats disponibles affichés — certaines sources sont hors ligne",
     "recentSearches": "Recherches récentes",
     "clearRecent": "Effacer",

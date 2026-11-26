@@ -52,6 +52,7 @@ function harness(over: Partial<{
   /** Move to the next queue entry when a track is dropped, as the engine does. */
   advanceOnRemove: boolean;
   unresolvable: string[];
+  connectionProblem: () => 'offline' | 'serverUnreachable' | null;
 }> = {}) {
   const queue = over.queue ?? [resource('1'), resource('2')];
   let currentQueue = queue;
@@ -94,6 +95,8 @@ function harness(over: Partial<{
     },
     notifyError: () => { toasts.push(now); },
     notifyStopped: () => { stops.push(now); },
+    connectionProblem: over.connectionProblem ?? (() => null),
+    setConnectionInterrupted: () => {},
     logFailure: info => { logged.push(info); },
     now: () => now,
   };
@@ -114,6 +117,38 @@ function harness(over: Partial<{
 
 const names = (calls: { name: string }[]) => calls.map(c => c.name);
 const fail = { message: 'boom' };
+
+it('keeps the second occurrence and its position through an outage and explicit retry', () => {
+  let offline = true;
+  const one = resource('1');
+  const queue = [one, one, resource('2')];
+  const h = harness({ queue, currentIndex: 1, position: 57, unresolvable: ['2'],
+    connectionProblem: () => offline ? 'offline' : null });
+
+  h.handlers.onError(fail);
+  h.handlers.onError(fail);
+  expect(h.handlers.retryConnection()).toBe(true);
+  expect(h.queue).toBe(queue);
+  expect(names(h.engineCalls)).toEqual(['pause']);
+  expect(h.removed).toHaveLength(0);
+  expect(h.logged[0].connectionProblem).toBe('offline');
+
+  offline = false;
+  expect(h.handlers.retryConnection()).toBe(true);
+  expect(names(h.engineCalls)).toEqual(['pause', 'setMediaItems', 'seekTo', 'play']);
+  expect(h.engineCalls[1].args[1]).toBe(1);
+  expect(h.engineCalls[2].args).toEqual([57]);
+  expect(h.queue[2]).toBe(queue[2]);
+});
+
+it('preserves a remote track after retrying a native connection failure', () => {
+  const h = harness();
+  const networkError = { ...fail, domain: 'ERROR_CODE_IO_NETWORK_CONNECTION_FAILED' };
+  h.handlers.onError(networkError);
+  h.handlers.onError(networkError);
+  expect(h.removed).toHaveLength(0);
+  expect(names(h.engineCalls)).toEqual(['setMediaItems', 'play', 'pause']);
+});
 
 describe('a track that cannot be refreshed', () => {
   it('drops a failed preview immediately rather than retrying it', () => {

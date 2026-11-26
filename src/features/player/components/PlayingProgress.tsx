@@ -30,7 +30,7 @@ const PlayingProgressSection: React.FC<{ songDuration: number }> = memo(({ songD
   return (
     <>
       <SeekableProgressBar
-        value={position}
+        value={progress.position}
         duration={duration}
         onSeek={seekSong}
         onPreview={setPreview}

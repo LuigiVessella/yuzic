@@ -190,8 +190,27 @@ describe('SearchContext handleSearchWithFilters', () => {
     });
     await waitFor(() => expect(result.current.searchResults.some(r => r.externalSource === 'deezer')).toBe(true));
     expect(result.current.isLoading).toBe(true);
+    expect(result.current.sourceStatuses).toEqual({ deezer: 'ready', musicbrainz: 'pending' });
     await act(async () => { finishMusicBrainz(); await pending; });
     expect(result.current.isLoading).toBe(false);
+  });
+
+  it('retries only the failed source and keeps results from healthy sources', async () => {
+    mockSearchReleaseGroupByTitle.mockRejectedValueOnce(new Error('timeout'));
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    await act(async () => {
+      await result.current.handleSearchWithFilters('Rumours', {
+        resultScope: 'other', sourceIds: ['deezer', 'musicbrainz'],
+      });
+    });
+
+    expect(result.current.sourceStatuses).toEqual({ deezer: 'ready', musicbrainz: 'failed' });
+    expect(result.current.searchResults.some(item => item.externalSource === 'deezer')).toBe(true);
+    const deezerRequests = mockSearchDeezerAlbums.mock.calls.length;
+    await act(async () => { result.current.retrySource('musicbrainz'); });
+    await waitFor(() => expect(result.current.sourceStatuses.musicbrainz).toBe('ready'));
+    expect(result.current.searchResults.some(item => item.externalSource === 'musicbrainz')).toBe(true);
+    expect(mockSearchDeezerAlbums).toHaveBeenCalledTimes(deezerRequests);
   });
 
   it('never mixes library and external results in one response', async () => {

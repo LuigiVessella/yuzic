@@ -14,6 +14,7 @@ updated in the same commit.
 | [`.maestro/README.md`](.maestro/README.md) | Adding or changing an E2E flow, or working out why one failed. |
 | [`docs/fork-releases.md`](docs/fork-releases.md) | Fork builds, signing, versions, tags, releases and CI. |
 | This file, below | Any UI work, and anything under `.github/workflows/` or `fastlane/`. |
+| [`docs/studio-ui.md`](docs/studio-ui.md) | Changing Studio layouts or checking the visual implementation against the mockup. |
 
 **Keep them in sync.** A new integration, downloader, or outside endpoint
 belongs in `docs/integrations.md`, and a new load-bearing pattern in

@@ -60,7 +60,7 @@ export function useSearchScreenModel() {
   const activeServerId = useSelector(selectActiveServerId);
 
   const history = useSearchHistory(activeServerId ?? undefined);
-  const { searchResults, handleSearchWithFilters, clearSearch, isLoading, hasError, degraded } = useSearch();
+  const { searchResults, handleSearchWithFilters, clearSearch, isLoading, hasError, degraded, sourceStatuses, retrySource } = useSearch();
 
   const [query, setQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
@@ -167,14 +167,13 @@ export function useSearchScreenModel() {
   // doesn't have that choice silently widened out from under them — except
   // when it was switched on from that sheet, which selects it itself.
   const runSearch = useCallback((text: string) => {
-    clearSearch();
     setHasSearched(true);
     void handleSearchWithFilters(text, {
       resultScope: scopeRef.current,
       sourceIds: selectedSourceIdsRef.current,
       entityTypes: selectedEntityTypesRef.current,
     });
-  }, [clearSearch, handleSearchWithFilters]);
+  }, [handleSearchWithFilters]);
 
   // Switching scope (or the filters underneath "Other sources") re-runs the
   // current query immediately rather than waiting for the next keystroke —
@@ -182,18 +181,17 @@ export function useSearchScreenModel() {
   // (or nothing) until the user typed again.
   useEffect(() => {
     if (query.trim() === '') return;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     runSearch(query);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultScope, selectedSourceIds.join(','), selectedEntityTypes.join(',')]);
 
   const onSearchChange = (text: string) => {
     setQuery(text);
+    clearSearch();
+    setHasSearched(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    if (!text.trim()) {
-      clearSearch();
-      setHasSearched(false);
-      return;
-    }
+    if (!text.trim()) return;
     typingTimeoutRef.current = setTimeout(() => runSearch(text), 300);
   };
 
@@ -317,6 +315,10 @@ export function useSearchScreenModel() {
   const externalResultsBySource = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
     if (!showExternalResults) return groups;
+    for (const id of selectedSourceIds) {
+      const status = sourceStatuses[id];
+      if (status === 'pending' || status === 'failed') groups.set(id, []);
+    }
     for (const r of searchResults) {
       if (r.source !== 'external' || !r.externalSource) continue;
       const existing = groups.get(r.externalSource);
@@ -325,7 +327,7 @@ export function useSearchScreenModel() {
     }
     return new Map([...groups.entries()].sort(([a], [b]) =>
       selectedSourceIds.indexOf(a) - selectedSourceIds.indexOf(b)));
-  }, [searchResults, showExternalResults, selectedSourceIds]);
+  }, [searchResults, showExternalResults, selectedSourceIds, sourceStatuses]);
 
   const coversToPrefetch = useMemo(() => searchResults.slice(0, 18).map(r => r.cover), [searchResults]);
   usePrefetchCovers(coversToPrefetch, 'thumb');
@@ -362,7 +364,7 @@ export function useSearchScreenModel() {
     showLibraryResults, showExternalResults, showSourceHeaders,
     // results
     hasSearched, isLoading, hasError, degraded,
-    libraryResults, externalResultsBySource, noResultsForScope,
+    libraryResults, externalResultsBySource, noResultsForScope, sourceStatuses, retrySource,
     // history
     recentQueries: history.recentQueries,
     recentEntities: history.recentEntities,

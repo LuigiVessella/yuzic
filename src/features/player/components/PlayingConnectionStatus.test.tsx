@@ -18,6 +18,13 @@ it('does not disturb the player when connected', async () => {
   expect(screen.queryByTestId('playing-connection-status')).toBeNull();
 });
 
+it('offers explicit retry when the connection is available again', async () => {
+  const retry = jest.fn(async () => {});
+  const screen = await render(<PlayingConnectionStatus onDownloads={jest.fn()} onRetry={retry} />);
+  await fireEvent.press(screen.getByText('common.retry'));
+  expect(retry).toHaveBeenCalledTimes(1);
+});
+
 it('distinguishes an unreachable server and opens the saved music action', async () => {
   mockReachable = false;
   const open = jest.fn();

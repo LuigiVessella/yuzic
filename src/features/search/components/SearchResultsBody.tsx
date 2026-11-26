@@ -5,11 +5,12 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Text } from '@/components/Text';
 import { useTranslation } from 'react-i18next';
 
-import { iconSize, motion, spacing, typography } from '@/constants/design';
+import { controlSize, iconSize, motion, spacing, typography } from '@/constants/design';
 import { useTheme } from '@/features/theme/useTheme';
 import { useReducedMotion } from '@/features/theme/useReducedMotion';
 import SkeletonListRow from '@/components/SkeletonListRow';
 import SpinningLoaderCircle from '@/components/SpinningLoaderCircle';
+import Touchable from '@/components/Touchable';
 import { getSourceMeta } from '@/features/sources/registry';
 import type { useSearchScreenModel } from '@/features/search/useSearchScreenModel';
 import RecentSearches from './RecentSearches';
@@ -44,10 +45,8 @@ export default function SearchResultsBody({ m }: { m: Model }) {
   const branch = (key: string, children: React.ReactNode) => (
     <Animated.View
       key={key}
-      entering={reduced
-        ? FadeIn.duration(motion.quick)
-        : FadeIn.duration(motion.contentFade).withInitialValues({ transform: [{ translateY: BRANCH_RISE }] })}
-      exiting={FadeOut.duration(motion.quick)}
+      entering={reduced ? undefined : BODY_ENTERING}
+      exiting={reduced ? undefined : BODY_EXITING}
     >
       {children}
     </Animated.View>
@@ -88,6 +87,8 @@ export default function SearchResultsBody({ m }: { m: Model }) {
     return branch('loading', <>{[...Array(8)].map((_, i) => <SkeletonListRow key={i} />)}</>);
   }
 
+  const pendingSource = Object.values(m.sourceStatuses).includes('pending');
+
   const row = (result: Parameters<typeof ResultRow>[0]['result']) => (
     <ResultRow
       result={result}
@@ -115,6 +116,7 @@ export default function SearchResultsBody({ m }: { m: Model }) {
       ))}
 
       {m.showExternalResults && Array.from(m.externalResultsBySource.entries()).map(([sourceId, results]) => {
+        const status = m.sourceStatuses[sourceId];
         const meta = getSourceMeta(sourceId);
         const label = meta?.label ?? sourceId;
         const color = meta?.color ?? colors.subtext;
@@ -126,6 +128,21 @@ export default function SearchResultsBody({ m }: { m: Model }) {
                 <SourceBadge letter={letter} color={color} />
               )}
               <Text style={[styles.sourceHeaderText, { color: colors.subtext }]}>{label}</Text>
+              {status === 'pending' && (
+                <SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} />
+              )}
+              {status === 'failed' && (
+                <>
+                  <Text accessibilityLiveRegion="polite" style={[styles.sourceStatusText, { color: colors.subtext }]}>
+                    {t('search.sourceUnavailable')}
+                  </Text>
+                  <Touchable accessibilityRole="button" style={styles.retry} onPress={() => m.retrySource(sourceId)}>
+                    <Text style={[styles.sourceHeaderText, { color: colors.secondary }]}>
+                      {t('search.retrySource', { source: label })}
+                    </Text>
+                  </Touchable>
+                </>
+              )}
             </View>
             {results.map((result, i) => (
               <View key={`external:${result.type}:${result.id}`} style={[styles.resultBlock, i === 0 && styles.resultBlockFirst]}>
@@ -141,13 +158,15 @@ export default function SearchResultsBody({ m }: { m: Model }) {
           {t('search.noResults')}
         </Text>
       )}
-      {m.isLoading && <View style={styles.pending}><SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} /></View>}
+      {m.isLoading && !pendingSource && <View style={styles.pending}><SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} /></View>}
     </>
   ));
 }
 
 /** How far a body rises as it fades in — enough to read as arrival, not as travel. */
 const BRANCH_RISE = 8;
+const BODY_ENTERING = FadeIn.duration(motion.contentFade).withInitialValues({ transform: [{ translateY: BRANCH_RISE }] });
+const BODY_EXITING = FadeOut.duration(motion.quick);
 
 const styles = StyleSheet.create({
   pending: { alignItems: 'center', paddingVertical: spacing.md },
@@ -157,6 +176,7 @@ const styles = StyleSheet.create({
   },
   sourceHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -167,6 +187,8 @@ const styles = StyleSheet.create({
     ...typography.rowSubtitle,
     fontWeight: '500',
   },
+  sourceStatusText: { ...typography.caption },
+  retry: { minHeight: controlSize.minimumTarget, justifyContent: 'center', paddingHorizontal: spacing.sm },
   noResults: {
     ...typography.body,
     textAlign: 'center',

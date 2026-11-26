@@ -265,11 +265,11 @@ export default function ArtistContent({ model }: Props) {
 
 const styles = StyleSheet.create({
   sectionHeader: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.controlGap,
   },
   sectionTitle: {
-    ...typography.navigationTitle,
+    ...typography.sectionTitle,
     paddingHorizontal: spacing.lg,
   },
   showMoreRow: {
@@ -280,13 +280,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   showMoreIcon: {
-    width: 64,
-    height: 64,
+    width: 44,
+    height: 44,
     marginRight: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   showMoreText: {
     ...typography.button,
+    flexShrink: 1,
   },
 })

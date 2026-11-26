@@ -31,11 +31,11 @@ import {
   searchLibraryLeg,
   searchServerLeg,
   searchPlaylistIndexLeg,
-  searchExternalLeg,
   ALL_SEARCH_ENTITY_TYPES,
   type SearchIndex,
   type DownloadedIds,
 } from '@/features/search/searchPolicy';
+import { useExternalSearch } from './useExternalSearch';
 
 export type { SearchResult } from '@/features/search/searchRanking';
 export type { SearchEntityType } from '@/features/search/searchPolicy';
@@ -44,7 +44,7 @@ interface SearchContextType {
   searchResults: SearchResult[];
   clearSearch: () => void;
   isLoading: boolean;
-  /** True when the most recent search failed to reach the server/external source, so results shown (if any) may be incomplete. */
+  /** Whether the music server search failed. External failures are per source. */
   hasError: boolean;
   /**
    * True when the remote legs of the search were deliberately skipped because
@@ -52,6 +52,8 @@ interface SearchContextType {
    * Distinct from `hasError`: nothing failed, it was never attempted.
    */
   degraded: boolean;
+  sourceStatuses: Readonly<ReturnType<typeof useExternalSearch>['sourceStatuses']>;
+  retrySource: (sourceId: string) => void;
   handleSearchWithFilters: (query: string, filters: SearchFilters) => Promise<void>;
 }
 
@@ -130,10 +132,12 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [degraded, setDegraded] = useState(false);
+  const { sourceStatuses, startExternal, clearExternal, retrySource } = useExternalSearch(canReachExternal, setSearchResults);
 
   const searchRequestIdRef = useRef(0);
-  const externalAbortRef = useRef<AbortController | null>(null);
-  useEffect(() => () => externalAbortRef.current?.abort(), []);
+  useEffect(() => () => {
+    searchRequestIdRef.current += 1;
+  }, []);
 
   // Pre-compute lowercased strings once when library data changes, not on every keystroke.
   // With 9000 tracks this avoids 18,000 toLowerCase() calls per search query.
@@ -145,31 +149,22 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   }), [tracks, albums, artists, playlists]);
 
   const clearSearch = useCallback(() => {
-    externalAbortRef.current?.abort();
+    clearExternal();
     searchRequestIdRef.current += 1;
     setSearchResults([]);
     setIsLoading(false);
     setHasError(false);
     setDegraded(false);
-  }, []);
+  }, [clearExternal]);
 
   const handleSearchWithFilters = useCallback(async (query: string, filters: SearchFilters) => {
-    externalAbortRef.current?.abort();
-    const controller = new AbortController();
-    externalAbortRef.current = controller;
+    clearSearch();
     const requestId = ++searchRequestIdRef.current;
-    if (!query.trim()) {
-      setSearchResults([]);
-      setIsLoading(false);
-      setHasError(false);
-      setDegraded(false);
-      return;
-    }
+    if (!query.trim()) return;
     setIsLoading(true);
     let errored = false;
     try {
       const lowerQuery = query.toLowerCase();
-      const results: SearchResult[] = [];
       const entityTypes = filters.entityTypes ?? ALL_SEARCH_ENTITY_TYPES;
 
       // Decide the legs up front rather than at each call site. A leg that
@@ -186,49 +181,40 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
         deviceOnline: canReachExternal,
       });
 
-      const publish = () => {
-        if (requestId === searchRequestIdRef.current) setSearchResults(dedupeAndSort(results, lowerQuery));
+      const publish = (results: SearchResult[]) => {
+        if (requestId === searchRequestIdRef.current) {
+          setSearchResults(previous => dedupeAndSort([...previous, ...results], lowerQuery));
+        }
       };
       if (legs.client) {
-        results.push(...searchLibraryLeg(searchIndex, query, downloaded));
-        publish();
+        publish(searchLibraryLeg(searchIndex, query, downloaded));
       }
       if (requestId !== searchRequestIdRef.current) return;
 
       const pending: Promise<void>[] = [];
       if (legs.server) {
         pending.push((async () => {
-          try { results.push(...await searchServerLeg(api?.search, query, downloaded)); } catch { errored = true; }
+          try { publish(await searchServerLeg(api?.search, query, downloaded)); } catch { errored = true; }
         // The server leg cannot answer for playlists — no `SearchApi` returns
         // them, and Subsonic's search3 has no playlist in its response — but
         // they are synced whole, so the index has every one. Without this a
         // server-scoped search found none, while the on-device scope did.
-          results.push(...searchPlaylistIndexLeg(searchIndex, query, downloaded));
-          publish();
+          publish(searchPlaylistIndexLeg(searchIndex, query, downloaded));
         })());
       }
 
       if (legs.externalSources.length > 0) {
-        pending.push((async () => {
-          try {
-            await searchExternalLeg(legs.externalSources, query, entityTypes, controller.signal, sourceResults => {
-              results.push(...sourceResults);
-              publish();
-            });
-          } catch { errored = true; }
-          publish();
-        })());
+        pending.push(startExternal(query, entityTypes, legs.externalSources));
       }
       await Promise.all(pending);
       if (requestId !== searchRequestIdRef.current) return;
 
-      publish();
       setHasError(errored);
       setDegraded(legs.degraded);
     } finally {
       if (requestId === searchRequestIdRef.current) setIsLoading(false);
     }
-  }, [api, canReachExternal, canReachServer, downloaded, searchIndex, searchScope]);
+  }, [api, canReachExternal, canReachServer, clearSearch, downloaded, searchIndex, searchScope, startExternal]);
 
   const value = useMemo<SearchContextType>(() => ({
     searchResults,
@@ -236,8 +222,10 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
     isLoading,
     hasError,
     degraded,
+    sourceStatuses,
+    retrySource,
     handleSearchWithFilters,
-  }), [searchResults, clearSearch, isLoading, hasError, degraded, handleSearchWithFilters]);
+  }), [searchResults, clearSearch, isLoading, hasError, degraded, sourceStatuses, retrySource, handleSearchWithFilters]);
 
   return (
     <SearchContext.Provider value={value}>

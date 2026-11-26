@@ -160,6 +160,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   cover: {
     width: controlSize.mediaRowArt,
@@ -185,8 +186,8 @@ const styles = StyleSheet.create({
   textContainerNoCover: {
     marginLeft: 0,
   },
-  title: typography.rowTitle,
-  compactTitle: typography.compactRowTitle,
+  title: { ...typography.rowTitle, fontWeight: '500' },
+  compactTitle: { ...typography.compactRowTitle, fontWeight: '500' },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

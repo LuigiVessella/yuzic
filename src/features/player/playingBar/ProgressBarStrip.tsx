@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { usePlayingProgress } from '@/features/playback/PlayingContext';
+import { useReducedMotion } from '@/features/theme/useReducedMotion';
 
 type Props = {
   fallbackDuration: number;
@@ -19,14 +20,15 @@ function ProgressBarStrip({ fallbackDuration, fillColor, trackColor }: Props) {
   const { position, duration } = usePlayingProgress();
   const effectiveDuration = duration > 0 ? duration : fallbackDuration;
   const displayRatio = useSharedValue(0);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     const ratio = effectiveDuration > 0 ? Math.max(0, Math.min(1, position / effectiveDuration)) : 0;
-    displayRatio.value = withTiming(ratio, { duration: motion.progress, easing: Easing.linear });
-  }, [position, effectiveDuration, displayRatio]);
+    displayRatio.value = reduced ? ratio : withTiming(ratio, { duration: motion.progress, easing: Easing.linear });
+  }, [position, effectiveDuration, displayRatio, reduced]);
 
   const fillStyle = useAnimatedStyle(() => ({
-    width: `${displayRatio.value * 100}%`,
+    transform: [{ scaleX: displayRatio.value }],
   }));
 
   return (
@@ -40,16 +42,16 @@ export default memo(ProgressBarStrip);
 
 const styles = StyleSheet.create({
   track: {
-    // Edge to edge: this is the rule between the now-playing row and the
-    // tabs, so it cancels the bar's page padding rather than sitting inset
-    // like a widget's own progress bar.
+    // Edge to edge inside the mini player's clipped surface.
     height: 2,
     marginTop: spacing.sm,
-    marginHorizontal: -spacing.page,
+    marginHorizontal: -spacing.sm,
     borderRadius: radius.none,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
+    width: '100%',
+    transformOrigin: 'left center',
   },
 });

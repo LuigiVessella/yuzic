@@ -5,7 +5,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePlayingState, usePlayingProgress } from '@/features/playback/PlayingContext';
+import { usePlayingActions, usePlayingState, usePlayingProgress } from '@/features/playback/PlayingContext';
 import { useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectShowPlaybackSpeed, selectShowVolumeSlider } from '@/features/settings/playback/state';
@@ -70,7 +70,8 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
     onClose,
 }) => {
     const router = useRouter();
-    const { currentSong, playbackSpeed } = usePlayingState();
+    const { currentSong, playbackSpeed, connectionInterrupted } = usePlayingState();
+    const { resumeSong } = usePlayingActions();
     const { resolveAndNavigateToArtist } = useExternalResolution();
     const insets = useSafeAreaInsets();
     const songModel: SongScreenModel = useSongScreenModel(currentSong);
@@ -248,7 +249,7 @@ const PlayingScreen: React.FC<PlayingScreenProps> = ({
                                     when there is not. */}
 
 
-                                <PlayingConnectionStatus onDownloads={() => {
+                                <PlayingConnectionStatus onRetry={connectionInterrupted ? resumeSong : undefined} onDownloads={() => {
                                     onClose();
                                     router.push({ pathname: '/libraryCollectionView', params: { type: 'downloaded' } });
                                 }} />
@@ -385,7 +386,7 @@ const styles = StyleSheet.create({
         // that much empty space beneath them. `justifyContent` was
         // `space-between` over a single flex child, which is the shape this
         // row had before the two controls became a centred cluster.
-        paddingTop: spacing.xl,
+        paddingTop: spacing.xxl,
     },
 });
 

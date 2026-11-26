@@ -54,6 +54,7 @@ const QueueItem = memo(
     >
       <MediaImage
         cover={item.cover}
+        fallbackCover={item.album.cover}
         size="thumb"
         style={[styles.artwork, { borderRadius: rad.md }]}
       />
@@ -144,6 +145,7 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
         {currentSong && (
           <MediaImage
             cover={currentSong.cover}
+            fallbackCover={currentSong.album.cover}
             size="thumb"
             style={[styles.headerImage, { borderRadius: rad.md }]}
           />
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    ...typography.rowTitle,
+    ...typography.navigationTitle,
     color: onDark.text,
     marginBottom: spacing.xxs,
   },

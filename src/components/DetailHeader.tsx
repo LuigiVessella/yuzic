@@ -51,13 +51,13 @@ const WASH_FADE_MS = 450;
  * the list scrolls away under, not the content, so it is the same size on
  * every phone and does not grow into half an iPad.
  */
-const DETAIL_COVER_SIZE = 280;
+const DETAIL_COVER_SIZE = 224;
 
 /**
  * How much of a short window the hero may take.
  *
- * 280 plus its margins and a two-line title is 400pt, which is the whole of a
- * phone turned on its side — the screen opened on a full page of chrome with
+ * Artwork, margins and a two-line title can fill a short window — the
+ * screen otherwise opens on a full page of chrome with
  * the first track below the fold. Only landscape asks this; in portrait the
  * fixed size always wins, so no phone and no tablet held upright moves.
  */
@@ -312,11 +312,12 @@ const styles = StyleSheet.create({
   titleInfo: {
     width: '100%',
     marginBottom: spacing.roomy,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.page,
   },
   title: {
     ...typography.screenTitle,
     marginBottom: spacing.tight,
-    textAlign: 'center',
+    textAlign: 'left',
   },
 });

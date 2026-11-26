@@ -31,8 +31,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   title: {
     ...typography.sheetTitle,

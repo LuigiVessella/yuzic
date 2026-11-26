@@ -10,7 +10,7 @@ import { makeLocalId } from '@/domain/identity/LocalId';
 import type { Provenance } from '@/domain/identity/Provenance';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import { albumCoverSubject, coverOrMissing, missingCover, type CoverSource } from '@/domain/entities/Cover';
-import { buildSongCover, type MediaBrowserBrand } from './brand';
+import { buildCoverWithTag, buildSongCover, type MediaBrowserBrand } from './brand';
 import { normalizeGenres } from './utils/normalizeGenres';
 import { albumRef, artistRef } from './mapRefs';
 import type { MediaBrowserItem } from './types';
@@ -79,8 +79,13 @@ export function mapSong(dto: MediaBrowserItem, context: MapSongContext): Song {
   const { provenance, brand } = context;
   const nativeId = dto.Id ?? '';
   const albumId = dto.AlbumId ?? context.albumId;
+  const albumTitle = context.albumTitle ?? dto.Album;
   const artistItem = dto.ArtistItems?.[0];
-  const cover = internCover(context.cover ?? songCover(dto, brand, albumId, artistItem?.Name ?? dto.AlbumArtist, context.albumTitle));
+  const cover = internCover(context.cover ?? songCover(dto, brand, albumId, artistItem?.Name ?? dto.AlbumArtist, albumTitle));
+  const albumCover = internCover(context.cover ?? coverOrMissing(
+    buildCoverWithTag(brand, albumId, dto.AlbumPrimaryImageTag),
+    albumCoverSubject(albumTitle, dto.AlbumArtist ?? artistItem?.Name),
+  ));
   const mediaSource = dto.MediaSources?.[0];
   const audioStream = mediaSource?.MediaStreams?.find(stream => stream.Type === 'Audio');
   const ticks = dto.RunTimeTicks ?? mediaSource?.RunTimeTicks ?? 0;
@@ -92,7 +97,7 @@ export function mapSong(dto: MediaBrowserItem, context: MapSongContext): Song {
     externalIds: externalIdsOf(dto),
     title: dto.Name ?? 'Unknown',
     artist: artistRef(provenance, artistItem?.Id, artistItem?.Name ?? dto.AlbumArtist),
-    album: albumRef(provenance, albumId, context.albumTitle, cover),
+    album: albumRef(provenance, albumId, albumTitle, albumCover),
     cover,
     durationSeconds: Math.round(ticks / TICKS_PER_SECOND),
     // Everything reachable through the library's song endpoints is a song;

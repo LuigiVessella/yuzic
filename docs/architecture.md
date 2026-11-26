@@ -267,6 +267,11 @@ second player session. Untimed lyrics never auto-follow. Seek previews update
 only the progress/timestamps component, keeping the artwork out of that render
 loop. No persisted playback field or engine method is added by this redesign.
 
+Both progress bars scale a fixed-width fill. The full player's seek bar
+updates the fill on the UI thread and sends timestamp previews to React only
+when a displayed second changes. Reduced motion applies progress samples
+directly.
+
 ### Queue edits, starts and playback recovery
 
 Queue persistence requests position preservation only when the saved server and
@@ -286,6 +291,12 @@ occurrence cannot resolve, playback pauses and the original queue is retained.
 Otherwise the queue, index and segment ownership are projected through the same
 retained indices before the engine is reloaded. Duplicate song ids therefore do
 not move the playhead to another occurrence during recovery.
+
+A remote stream error during a detected outage pauses playback and keeps the
+entire queue. Repeated native network errors also preserve the queue after
+automatic recovery is exhausted. The player offers Retry after connectivity
+returns. Retry reloads the same queue occurrence and seeks to the captured
+position, refreshing URLs where possible and retaining the other entries.
 
 ### Adding a new persisted playback dimension
 
@@ -721,6 +732,9 @@ Three shapes of consumer:
 2. **Has a local equivalent but isn't a query** — search. See
    `features/search/searchLegs.ts`: the legs are decided before any fetch, and a
    *server* scope falls back to the local index rather than to nothing.
+   External sources report pending and failed requests individually.
+   Retrying a failed source keeps the other results and uses the current
+   query's cancellation signal.
 3. **Has no local equivalent** (radio, podcasts, shares, the server-backed Home
    shelves) — gate `enabled` on `useServerReachable()` and render an offline
    empty state. These have nothing to degrade *to*, so the honest answer is to
@@ -800,6 +814,9 @@ the correct profile for the missing-release list; ties remain unresolved.
 
 ## 7. Providers and capabilities
 
+The shared UI's Studio presentation is described in [studio-ui.md](studio-ui.md).
+It uses the existing entity models, action handlers and theme hooks.
+
 A feature asks *what can do this*, never *which product it is*. Two mechanisms
 answer that, and which one a job uses depends on how many providers can do it.
 
@@ -836,6 +853,11 @@ answer that, and which one a job uses depends on how many providers can do it.
   check `ImageTags` (`itemCover`), Deezer's empty-hash silhouette is no picture
   (`imageCover`), Navidrome 0.64+ omits `coverArt`. No list, fetcher or screen
   looks pictures up itself.
+  Track rows, Quick Picks and the mini player can fall back to the track's
+  album artwork. Missing album covers still pass through resolution rather
+  than being discarded by their `none` kind. `MediaImage` observes shared
+  URL failures, so recovery on another surface updates mounted thumbnails;
+  a transient failure permits a retry on a later render after 30 seconds.
 - **Feature-owned registries**, for jobs with one provider each and behaviour
   no shared contract carries. Downloads are `features/downloaders/registry.ts`
   (`DownloaderDefinition`: `downloadAlbum`/`downloadTrack` with per-call

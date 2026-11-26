@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
+    minHeight: 48,
   },
   searchIcon: {
     marginRight: spacing.sm,

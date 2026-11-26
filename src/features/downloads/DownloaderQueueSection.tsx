@@ -122,7 +122,7 @@ export default function DownloaderQueueSection({ id, title, items, isLoading, ha
       <Touchable
         key={item.id}
         testID="downloads-queue-row"
-        style={styles.row}
+        style={[styles.row, { borderBottomColor: colors.border }]}
         onPress={onPress}
         disabled={!onPress}
         feedback={onPress ? 'row' : 'none'}
@@ -193,21 +193,22 @@ const styles = StyleSheet.create({
   sectionLabel: {
     ...typography.label,
     paddingHorizontal: spacing.page,
-    paddingTop: spacing.roomy,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.page,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: spacing.md,
   },
   cover: { width: COVER_SIZE, height: COVER_SIZE },
   body: { flex: 1, minWidth: 0 },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   text: { flex: 1, minWidth: 0 },
-  title: { ...typography.rowTitle },
+  title: { ...typography.rowTitle, fontWeight: '500' },
   subtitle: { ...typography.caption, marginTop: spacing.xxs },
   percent: { ...typography.caption },
   cancel: { padding: spacing.xxs },
