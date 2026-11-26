@@ -15,6 +15,7 @@ type SlskdAlbumRequest = {
   /** Optional MusicBrainz release-group id — when present, used to look up
    * the canonical title and artist credit before searching. */
   mbid?: string | null;
+  mbidType?: 'release' | 'release-group';
 };
 
 type SlskdTrackRequest = {
@@ -205,7 +206,7 @@ async function performAlbumDownload(
   // tagged the release using its canonical name than a source-specific
   // variant. Falls back to the caller's strings if MB is unreachable or
   // returns nothing useful.
-  const canonical = await canonicalizeAlbumFromMbid(req.mbid);
+  const canonical = await canonicalizeAlbumFromMbid(req.mbid, req.mbidType, config.musicbrainz);
   const albumTitle = canonical?.title ?? req.title;
   const artistName = canonical?.artist ?? req.artist;
 
@@ -275,7 +276,7 @@ export function downloadAlbum(
   config: SlskdConfig,
   req: SlskdAlbumRequest
 ): Promise<DownloadAlbumResult> {
-  return coalesce(requestKey(config, 'album', req.title, req.artist), () =>
+  return coalesce(requestKey(config, 'album', `${req.title}\u0000${req.mbid ?? ''}\u0000${req.mbidType ?? ''}`, req.artist), () =>
     performAlbumDownload(config, req)
   );
 }

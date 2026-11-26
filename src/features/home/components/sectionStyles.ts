@@ -17,11 +17,12 @@ export const getSectionItemWidth = shelfItemWidth
 
 export const sectionStyles = StyleSheet.create({
   container: {
-    paddingTop: spacing.md,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
   },
   title: {
     ...typography.sectionTitle,
+    letterSpacing: -0.4,
     marginBottom: spacing.md,
     marginLeft: SECTION_H_PADDING,
   },

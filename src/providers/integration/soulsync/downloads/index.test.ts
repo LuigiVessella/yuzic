@@ -1,6 +1,7 @@
 import {
   buildQuery,
   downloadTrack,
+  waitForRequestOutcome,
   fetchQueue,
   cancelDownload,
 } from './';
@@ -51,6 +52,35 @@ describe('SoulSync downloads', () => {
     expect(init.headers.Authorization).toBe('Bearer sk_test');
   });
 
+  it('does not accept a 202 without the id needed to check the search', async () => {
+    fetchMock.mockResolvedValue(envelope({ status: 'queued' }, true, 202));
+    await expect(downloadTrack(config, { title: 'A', artist: 'B' }))
+      .rejects.toThrow('without a request id');
+  });
+
+  it('checks the request id until SoulSync finds no track', async () => {
+    jest.useFakeTimers();
+    try {
+      fetchMock
+        .mockResolvedValueOnce(envelope({ status: 'queued' }))
+        .mockResolvedValueOnce(envelope({ status: 'not_found', error: 'No match found' }));
+      const outcome = waitForRequestOutcome(config, 'req-1');
+      await jest.advanceTimersByTimeAsync(3_000);
+      await expect(outcome).resolves.toBe('not_found');
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://soulsync.example/api/v1/request/req-1',
+        'https://soulsync.example/api/v1/request/req-1',
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('reports a started transfer only after SoulSync says downloading', async () => {
+    fetchMock.mockResolvedValue(envelope({ status: 'downloading', download_id: 'transfer-1' }));
+    await expect(waitForRequestOutcome(config, 'req-1')).resolves.toBe('downloading');
+  });
+
   it('falls back to the bare title when there is no artist to prefix', () => {
     expect(buildQuery({ title: 'Roygbiv', artist: '' })).toBe('Roygbiv');
     expect(buildQuery({ title: ' Roygbiv ', artist: ' Boards of Canada ' }))
@@ -61,7 +91,7 @@ describe('SoulSync downloads', () => {
     fetchMock.mockResolvedValue(errorEnvelope('INVALID_KEY', 'Invalid API key.', 403));
 
     await expect(downloadTrack(config, { title: 'A', artist: 'B' }))
-      .rejects.toMatchObject({ code: 'INVALID_KEY' });
+      .rejects.toMatchObject({ code: 'INVALID_KEY', status: 403 });
   });
 
   it('names a non-JSON reply as such rather than failing to parse', async () => {
@@ -70,7 +100,7 @@ describe('SoulSync downloads', () => {
     await expect(downloadTrack(config, { title: 'A', artist: 'B' }))
       .rejects.toBeInstanceOf(SoulSyncError);
     await expect(downloadTrack(config, { title: 'A', artist: 'B' }))
-      .rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+      .rejects.toMatchObject({ code: 'BAD_RESPONSE', status: 502 });
   });
 
   it('reads the queue and drops rows with no id to address', async () => {

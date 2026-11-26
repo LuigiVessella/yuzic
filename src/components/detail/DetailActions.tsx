@@ -125,21 +125,21 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    flexWrap: 'nowrap',
-    maxWidth: '94%',
+    justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
     marginTop: spacing.xs,
   },
   actionsRow: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xl,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.controlGap,
+    gap: spacing.lg,
   },
   secondaryButton: {
     width: controlSize.detailSecondary,

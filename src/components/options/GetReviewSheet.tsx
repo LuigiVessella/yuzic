@@ -22,6 +22,7 @@ import {
 } from '@/features/downloaders/registry';
 import { useAlbumTrackLoader } from '@/features/downloaders/albumTracks';
 import { runGet } from '@/features/downloaders/runGet';
+import { useExternalAlbumStatus } from '@/features/downloaders/useExternalAlbumStatus';
 import { setDefaultProvider, setDefaultQualityProfileId } from '@/state/redux/slices/downloadersSlice';
 import {
   selectDefaultProviderForActiveServer,
@@ -86,6 +87,8 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
 
   const downloaders = useDownloaderStates();
   const loadAlbumTracks = useAlbumTrackLoader();
+  const albumStatus = useExternalAlbumStatus(track ? null : album);
+  const alreadyRequested = !track && albumStatus.kind !== 'none';
   // A downloader appears only if it can take the unit being asked for. Lidarr
   // has no way to fetch one track; a track-only downloader (SoulSync) takes an
   // album as its tracks, so every connected downloader can take an album.
@@ -151,6 +154,7 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
   }, [showQualityProfile, selected, savedDefaultQualityProfileId]);
 
   const handleGet = (downloader: DownloaderState) => {
+    if (alreadyRequested) return;
     // The review is over the moment it is confirmed. Everything after this
     // point reports through the toasts, so the sheet has no reason to stay on
     // screen for it — and every reason not to, since a track-only downloader
@@ -271,6 +275,9 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
           <Text style={[styles.requestingValue, { color: colors.secondary }]} numberOfLines={2}>
             {requestingQuery}
           </Text>
+          {unit === 'album' && selected && !selected.def.downloadAlbum && (
+            <Text style={[styles.requestingLabel, { color: colors.subtext }]}>{t('externalAlbum.review.perTrack')}</Text>
+          )}
         </View>
 
         {selected && (
@@ -297,16 +304,20 @@ const GetReviewSheet: React.FC<Props> = ({ album, track, wantLocalId, onDismiss,
           style={[
             styles.getButton,
             { backgroundColor: colors.secondary, borderRadius: rad.card },
-            !selected && styles.getButtonDisabled,
+            (!selected || alreadyRequested) && styles.getButtonDisabled,
           ]}
           onPress={() => selected && handleGet(selected)}
-          disabled={!selected}
+          disabled={!selected || alreadyRequested}
         >
           {/* Knocked out of the filled button, so it needs the page colour
               itself — `colors.background` is transparent over a background
               image, which left the button with no label at all. */}
           <Text style={[styles.getButtonLabel, { color: palette.background }]}>
-            {t('externalAlbum.review.confirmGet')}
+            {alreadyRequested
+              ? albumStatus.kind === 'in_library'
+                ? t('externalAlbum.menu.inLibrary')
+                : t(`wants.status.${albumStatus.kind}`, { progress: albumStatus.kind === 'downloading' ? albumStatus.progress : undefined })
+              : unit === 'album' ? t('externalAlbum.menu.get') : t('externalAlbum.menu.getSong')}
           </Text>
         </Touchable>
       </BottomSheetScrollView>

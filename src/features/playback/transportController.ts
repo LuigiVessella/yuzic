@@ -33,6 +33,8 @@ export interface TransportDeps {
   backend: () => PlayerBackend;
   /** Whether a remote sink is playing the audio rather than this device. */
   remoteOwnsPlayback: () => boolean;
+  retryConnection?: () => boolean;
+  clearConnectionRetry?: () => void;
   sink: {
     pause: () => Promise<void>;
     resume: () => Promise<void>;
@@ -118,6 +120,7 @@ export function createTransportController(deps: TransportDeps): TransportControl
       const next = deps.currentIndex() + 1;
       // Past the end is the end, unless repeat is going to wrap it.
       if (next >= deps.queueLength() && deps.repeatMode() !== 'all') return;
+      deps.clearConnectionRetry?.();
       if (deps.remoteOwnsPlayback()) {
         // Modulo, because this is the wrapping case — and guarded against an
         // empty queue, where the modulus would be zero and the result NaN.
@@ -131,6 +134,7 @@ export function createTransportController(deps: TransportDeps): TransportControl
     async skipToPrevious() {
       await reportOutgoing();
       if (deps.currentIndex() <= 0) return;
+      deps.clearConnectionRetry?.();
       if (deps.remoteOwnsPlayback()) {
         await deps.sink.skipTo(deps.currentIndex() - 1);
         return;
@@ -147,6 +151,7 @@ export function createTransportController(deps: TransportDeps): TransportControl
       // clock would stop the play in progress ever reaching the threshold.
       if (index !== deps.currentIndex()) {
         await reportOutgoing();
+        deps.clearConnectionRetry?.();
         deps.markNewListen();
       }
 
@@ -166,7 +171,10 @@ export function createTransportController(deps: TransportDeps): TransportControl
     },
 
     async resume() {
-      if (!deps.remoteOwnsPlayback()) deps.backend().play();
+      if (!deps.remoteOwnsPlayback()) {
+        if (deps.retryConnection?.()) return;
+        deps.backend().play();
+      }
       await deps.sink.resume();
     },
 

@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   left: {
     flexDirection: 'row',
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  label: { ...typography.rowTitle },
+  label: { ...typography.rowTitle, flexShrink: 1 },
   // A long summary ("Last.fm, Cover Art Archive, LRCLIB") shortens itself
   // rather than the label, and never takes more than a little over half the row.
   right: {

@@ -37,14 +37,15 @@ jest.mock('react-native-gesture-handler', () => {
   };
 });
 jest.mock('@/features/theme/useRadius', () => ({ useRadius: () => ({ pill: 999 }) }));
+jest.mock('@/features/theme/useReducedMotion', () => ({ useReducedMotion: () => false }));
 
 import { SeekableProgressBar } from './SeekableProgressBar';
 
 const WIDTH = 200;
 
-async function bar(onSeek = jest.fn()) {
+async function bar(onSeek = jest.fn(), onPreview?: (value: number | null) => void) {
   mockHandlers = {};
-  const view = await render(<SeekableProgressBar value={30} duration={300} onSeek={onSeek} />);
+  const view = await render(<SeekableProgressBar value={30} duration={300} onSeek={onSeek} onPreview={onPreview} />);
   await act(async () => {
     await fireEvent(view.getByTestId('seek-bar'), 'layout', { nativeEvent: { layout: { width: WIDTH } } });
   });
@@ -96,4 +97,18 @@ describe('SeekableProgressBar', () => {
     await act(async () => { mockHandlers.tap.onEnd({ x: 50 }, false); });
     expect(onSeek).not.toHaveBeenCalled();
   });
+});
+
+it('previews the scrub position without seeking until release', async () => {
+  const onSeek = jest.fn();
+  const onPreview = jest.fn();
+  await bar(onSeek, onPreview);
+  await act(async () => { mockHandlers.pan.onStart({ x: 21 }); });
+  await act(async () => { mockHandlers.pan.onUpdate({ x: 21.1 }); });
+  await act(async () => { mockHandlers.pan.onUpdate({ x: 100 }); });
+  expect(onPreview.mock.calls).toEqual([[31.5], [150]]);
+  expect(onSeek).not.toHaveBeenCalled();
+  await act(async () => { mockHandlers.pan.onEnd({ x: 100 }); });
+  expect(onSeek).toHaveBeenCalledWith(150);
+  expect(onPreview).toHaveBeenLastCalledWith(null);
 });

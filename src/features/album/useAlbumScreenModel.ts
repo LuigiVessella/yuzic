@@ -24,6 +24,8 @@ import { preferLocalSong } from '@/features/library/localFirst';
 import { useLocalFirst } from '@/features/library/useLocalFirst';
 import { ALL_SOURCES, useEnabledExternalSources } from '@/features/sources/registry';
 import { QueryKeys } from '@/state/query/queryKeys';
+import { useSelector } from 'react-redux';
+import { selectSourceServerUrls } from '@/features/settings/sources/state';
 
 export type AlbumRouteParams = {
   id?: string;
@@ -62,6 +64,7 @@ function useExternalAlbumLookup(input: {
 }) {
   const { enabled, source, albumId, artist, title } = input;
   const enabledSources = useEnabledExternalSources();
+  const serverUrls = useSelector(selectSourceServerUrls);
 
   return useQuery({
     queryKey: [
@@ -69,6 +72,7 @@ function useExternalAlbumLookup(input: {
       source ?? 'unknown',
       albumId || `${artist}::${title}`,
       enabledSources.map(s => s.id).join(','),
+      serverUrls,
     ],
     enabled,
     staleTime: 1000 * 60 * 60 * 24,

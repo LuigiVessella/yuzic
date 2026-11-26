@@ -5,6 +5,7 @@ import { notify } from '@/components/toast/notify';
 import { downloadAlbumByTracks } from './albumByTracks';
 import { downloadErrorKey, type DownloaderState } from './registry';
 import type { Album } from '@/domain/entities/Album';
+import { normalizeName } from '@/domain/identity/matching';
 
 type TrackRequest = { title: string; artist: string };
 
@@ -40,7 +41,24 @@ type GetRequest = {
  * changes — sending, then counting tracks, then its outcome — rather than
  * stacking three notifications for one tap.
  */
-export async function runGet({
+const inFlight = new Map<string, Promise<boolean>>();
+
+export function runGet(request: GetRequest): Promise<boolean> {
+  const { album, track, downloader } = request;
+  const key = JSON.stringify([
+    downloader.config.serverUrl, downloader.config.apiKey, downloader.def.id,
+    album.externalIds?.mbid ?? normalizeName(`${album.artist.name}\u0000${album.title}`),
+    track ? normalizeName(`${track.artist}\u0000${track.title}`) : null,
+    request.qualityProfileId,
+  ]);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const result = performGet(request).finally(() => { inFlight.delete(key); });
+  inFlight.set(key, result);
+  return result;
+}
+
+async function performGet({
   downloader,
   album,
   track,

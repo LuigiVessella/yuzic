@@ -8,7 +8,7 @@ import { selectHomeShelfItemCount } from '@/features/settings/home/state';
 import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { useTheme } from '@/features/theme/useTheme'
 import { useAlbums } from '@/features/album/useAlbums';
-import { useArtists } from '@/features/artist/useArtists';
+import { useLocalFirst } from '@/features/library/useLocalFirst';
 import { usePrefetchCovers } from '@/features/library/usePrefetchCovers'
 import { prefetchCovers } from '@/features/artwork/imageCache'
 import { useSourceUse } from '@/features/settings/sources/useSourceUse'
@@ -22,7 +22,7 @@ import {
 import { ShelfCarousel } from './ShelfCarousel'
 import { CATALOGUE_HOME_USE, fetchAlbumsForGenre } from '@/providers/registry/homeDiscovery'
 import { QueryKeys } from '@/state/query/queryKeys'
-import { getDayKey } from '@/features/home/hooks/useDailyLayout'
+import { getDayKey, getDailySeed } from '@/features/home/hooks/useDailyLayout'
 import SelectionBottomSheet from '@/components/SelectionBottomSheet'
 import OptionsTile from './OptionsTile'
 import type { Album } from '@/domain/entities/Album'
@@ -56,7 +56,7 @@ export default function GenreSection({ genre, refreshKey = 0 }: Props) {
   const { colors } = useTheme()
   const rad = useRadius()
   const { albums: libraryAlbums } = useAlbums()
-  const { artists: libraryArtists } = useArtists()
+  const { localAlbum } = useLocalFirst()
   const { genres: libraryGenres } = useGenres()
   const sheetRef = useRef<BottomSheetModal>(null)
   const dayKey = getDayKey()
@@ -77,11 +77,6 @@ export default function GenreSection({ genre, refreshKey = 0 }: Props) {
     }
     return [...genres].sort()
   }, [libraryGenres, libraryAlbums])
-
-  const libraryArtistNames = useMemo(
-    () => new Set(libraryArtists.map(a => a.name.toLowerCase())),
-    [libraryArtists]
-  )
 
   const seedArtistNames = useMemo(() => {
     const seen = new Set<string>()
@@ -116,17 +111,15 @@ export default function GenreSection({ genre, refreshKey = 0 }: Props) {
   }, [allGenres, selectedGenre])
 
   const query = useQuery<Album[]>({
-    // Include libraryArtists.length so the cache busts when the user's library
-    // gains or loses artists — otherwise stale results would include artists
-    // that are now in the library (or exclude ones that have been removed).
-    queryKey: [QueryKeys.ExploreGenreRow, dayKey, selectedGenre, seedArtistNames.join('|'), libraryArtists.length, refreshKey],
-    queryFn: () => fetchAlbumsForGenre(selectedGenre, seedArtistNames, libraryArtistNames, itemCount),
+    // Catalogue candidates are independent of which albums are currently owned.
+    queryKey: [QueryKeys.ExploreGenreRow, dayKey, selectedGenre, seedArtistNames, refreshKey, itemCount],
+    queryFn: () => fetchAlbumsForGenre(selectedGenre, seedArtistNames, itemCount * 2, getDailySeed(`${dayKey}:${refreshKey}`)),
     enabled: isEnabled,
     staleTime: STALE_DEEZER_DISCOVERY,
     networkMode: 'online',
   })
 
-  const albums = useMemo(() => query.data ?? [], [query.data])
+  const albums = useMemo(() => (query.data ?? []).filter(album => !localAlbum(album)).slice(0, itemCount), [query.data, localAlbum, itemCount])
   const coversToPrefetch = useMemo(() => albums.map(a => a.cover), [albums])
   usePrefetchCovers(coversToPrefetch, 'grid')
 

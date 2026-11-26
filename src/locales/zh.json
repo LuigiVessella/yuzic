@@ -133,7 +133,8 @@
         "english": "英语",
         "japanese": "日语",
         "french": "法语",
-        "chinese": "中文"
+        "chinese": "中文",
+        "italian": "意大利语"
       },
       "showQualityBadge": "显示音质标签",
       "showQualityBadgeSubtext": "在播放器显示格式和码率。",
@@ -719,9 +720,20 @@
       "longestGap": "未播放天数",
       "topArtists": "你的艺人",
       "topTracks": "你的曲目"
+    },
+    "diagnostics": {
+      "title": "诊断信息",
+      "explainer": "Yuzic 会记录出现的问题：无法播放的曲目、崩溃、未完成的下载。请在提交错误报告时一并分享，以便查明原因。密码和服务器凭据会被自动移除；曲目名称和服务器地址可能会出现在其中。",
+      "share": "分享诊断信息",
+      "sharing": "正在准备…",
+      "clear": "清除诊断信息",
+      "cleared": "已清除诊断信息",
+      "empty": "暂无记录。出现问题时会显示在这里。",
+      "recordCount_other": "{{count}} 条记录"
     }
   },
   "common": {
+    "unknownArtist": "未知艺术家",
     "cancel": "取消",
     "delete": "删除",
     "next": "下一步",
@@ -775,7 +787,9 @@
     "home": {
       "subtitle": "你的个人音乐库。随时随地从自有服务器流式播放。",
       "getStarted": "开始使用",
-      "terms": "继续使用即表示你已阅读并同意我们的《使用条款》和《隐私政策》"
+      "terms": "继续即表示您已阅读并接受我们的{{terms}}和{{privacy}}",
+      "termsLink": "使用条款",
+      "privacyLink": "隐私政策"
     },
     "servers": {
       "title": "你的服务器",
@@ -918,6 +932,7 @@
       "browse": "浏览"
     },
     "collection": {
+      "showCollaborations": "显示合作艺人",
       "empty": "这里还没有内容。",
       "downloadedEmpty": "还没有下载内容。在专辑或播放列表的选项中下载后，即可离线播放。",
       "playFailed": "无法开始播放。"
@@ -1007,13 +1022,16 @@
     "title": "搜索",
     "placeholder": "搜索音乐、歌手或播放列表...",
     "noResults": "未找到结果",
-    "searchError": "无法连接服务器 — 结果可能不完整",
-    "searchLocalOnly": "无法连接服务器 — 仅显示您的音乐库",
+    "searchError": "部分来源无法连接 — 结果可能不完整",
+    "sourceUnavailable": "来源不可用",
+    "retrySource": "重试 {{source}}",
+    "searchLocalOnly": "正在显示可用结果 — 部分来源处于离线状态",
     "recentSearches": "最近搜索",
     "clearRecent": "清除",
     "removeRecentSearch": "从最近搜索中删除“{{query}}”",
     "recentlyOpened": "最近打开",
     "scope": {
+      "all": "所有来源",
       "library": "音乐库",
       "other": "其他来源"
     },
@@ -1107,6 +1125,10 @@
     "offlineBanner": "离线 — 发现已暂停，你的音乐库仍可使用"
   },
   "playing": {
+    "connection": {
+      "offline": "无网络连接。仍可播放已保存的音乐。",
+      "serverUnreachable": "无法连接音乐服务器。可以播放已保存的音乐。"
+    },
     "volume": "音量",
     "volumeOnServer": "服务器音量",
     "output": {
@@ -1132,7 +1154,8 @@
       "playingFromQueue": "正在播放队列中的曲目"
     },
     "lyrics": {
-      "title": "歌词"
+      "title": "歌词",
+      "resumeFollowing": "返回当前歌词"
     },
     "aboutArtist": {
       "header": "歌手"
@@ -1270,7 +1293,7 @@
       "title": "外部专辑",
       "downloadToServer": "下载至服务器",
       "downloadSong": "下载歌曲",
-      "get": "获取",
+      "get": "获取专辑",
       "getSong": "获取歌曲",
       "want": "想要",
       "wanted": "已想要",
@@ -1287,7 +1310,7 @@
       "saveAsDefaultAlbums": "保存为专辑的默认设置",
       "saveAsDefaultTracks": "保存为歌曲的默认设置",
       "qualityProfile": "质量配置",
-      "confirmGet": "获取"
+      "perTrack": "每首歌曲将分别发送一个请求。"
     },
     "serverStatus": {
       "onServer": "已在库中",
@@ -1330,6 +1353,10 @@
           "BAD_RESPONSE": "该地址的响应不像 SoulSync，请检查网址。",
           "HTTP_ERROR": "无法连接 SoulSync，请检查服务器后重试。",
           "NOT_AVAILABLE": "SoulSync 尚未配置 Soulseek 连接。",
+          "INSUFFICIENT_SCOPE": "此 SoulSync API 密钥只能查看下载，不能发起请求。请使用具有写入权限的密钥。",
+          "not_found": "SoulSync 未在 Soulseek 上找到匹配的歌曲。",
+          "failed": "SoulSync 无法完成歌曲搜索。",
+          "unconfirmed": "SoulSync 已接受请求，但结果尚未确认。重试前请先检查 SoulSync。",
           "no_tracks": "无法获取这张专辑要请求的歌曲。",
           "some_tracks_failed": "这张专辑的部分歌曲未能向 SoulSync 请求。"
         }
@@ -1368,6 +1395,7 @@
     "openArrival": "打开",
     "artistLabel": "艺人",
     "status": {
+      "processing": "等待导入音乐库",
       "queued": "排队中",
       "downloading": "正在下载 · {{progress}}%",
       "failed": "未能获取",
@@ -1661,6 +1689,7 @@
       "checkConnection": "检查连接"
     },
     "player": {
+      "favorite": "收藏",
       "close": "关闭播放器",
       "songOptions": "歌曲选项",
       "addToPlaylist": "添加到播放列表",

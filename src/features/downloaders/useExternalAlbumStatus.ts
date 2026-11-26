@@ -6,10 +6,15 @@ import { matchAlbumToLibrary } from '@/features/library/matchToLibrary';
 import { useDownloadersQueue } from '@/features/downloaders/DownloadersQueueContext';
 import { matchesAlbum } from '@/features/downloaders/queueItem';
 import type { DownloaderId } from '@/state/redux/slices/downloadersSlice';
+import { useSelector } from 'react-redux';
+import { selectWantsForActiveServer } from '@/state/redux/selectors/wantsSelectors';
+import { wantStatus } from '@/features/wants/jobStatus';
+import { sharedIdentifier, normalizeName } from '@/domain/identity/matching';
 
 export type ExternalAlbumStatus =
   | { kind: 'in_library' }
   | { kind: 'downloading'; progress: number; source: DownloaderId }
+  | { kind: 'queued' | 'processing'; source: DownloaderId }
   | { kind: 'none' };
 
 /**
@@ -30,6 +35,7 @@ export type ExternalAlbumStatus =
 export function useExternalAlbumStatus(album: Album | null): ExternalAlbumStatus {
   const { albums: libraryAlbums } = useAlbums();
   const { queues } = useDownloadersQueue();
+  const wants = useSelector(selectWantsForActiveServer);
 
   const isInLibrary = useMemo(() => {
     if (!album) return false;
@@ -45,15 +51,28 @@ export function useExternalAlbumStatus(album: Album | null): ExternalAlbumStatus
     if (isInLibrary) return { kind: 'in_library' };
     if (!album) return { kind: 'none' };
 
+    const want = wants.find(want => want.unit === 'album' && (
+      want.localId === album.localId
+      || !!sharedIdentifier(want.externalIds ?? {}, album.externalIds)
+      || (normalizeName(want.title) === normalizeName(album.title) && normalizeName(want.artist) === normalizeName(album.artist.name))
+    ));
+    if (want?.jobRef) {
+      const status = wantStatus(want, { queues, hasArrived: false });
+      if (status.kind === 'queued' || status.kind === 'processing') return { kind: status.kind, source: want.jobRef.downloader };
+      if (status.kind === 'downloading') return { ...status, source: want.jobRef.downloader };
+    }
+
     const identity = { title: album.title, artist: album.artist.name };
 
     for (const queue of queues) {
-      const match = queue.items.find(item => item.active && matchesAlbum(item, identity));
+      const match = queue.items.find(item => (item.active || item.percentComplete >= 100) && matchesAlbum(item, identity));
       if (match) {
+        if (!match.active) return { kind: 'processing', source: queue.id };
+        if (match.percentComplete <= 0) return { kind: 'queued', source: queue.id };
         return { kind: 'downloading', progress: match.percentComplete, source: queue.id };
       }
     }
 
     return { kind: 'none' };
-  }, [isInLibrary, album, queues]);
+  }, [isInLibrary, album, queues, wants]);
 }

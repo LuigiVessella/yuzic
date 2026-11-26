@@ -80,6 +80,14 @@ describe('sameQueue', () => {
 });
 
 describe('resourceFromPlayerItem', () => {
+  it('keeps artwork and album metadata when JavaScript recovers native playback', () => {
+    const recovered = resourceFromPlayerItem({
+      mediaId: songId('locked'), url: 'https://host/audio', title: 'Playing while locked',
+      artworkUrl: 'https://host/cover?api_key=current-session', albumTitle: 'Album',
+    });
+    expect(recovered?.song.cover).toEqual({ kind: 'url', url: 'https://host/cover?api_key=current-session' });
+    expect(recovered?.song.album.title).toBe('Album');
+  });
   it('recovers provenance and the origin id from the media id alone', () => {
     const recovered = resourceFromPlayerItem({
       mediaId: songId('t9'),

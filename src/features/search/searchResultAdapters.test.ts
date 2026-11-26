@@ -1,5 +1,5 @@
 import type { SearchResult } from '@/features/search/searchRanking';
-import { resultToAlbum, resultToArtist, isExternalArtist } from './searchResultAdapters';
+import { entityToAlbum, resultToAlbum, resultToArtist, isExternalArtist } from './searchResultAdapters';
 
 const baseResult: SearchResult = {
   id: 'x-1',
@@ -22,6 +22,22 @@ describe('resultToAlbum', () => {
     const external: SearchResult = { ...baseResult, source: 'external', externalSource: 'deezer', id: 'dz-1' };
     const album = resultToAlbum(external, 'srv-1');
     expect(album.provenance).toEqual({ origin: 'integration', providerId: 'deezer' });
+  });
+
+  it('keeps a single as a release rather than converting it to a song or album', () => {
+    const result: SearchResult = { ...baseResult, source: 'external', externalSource: 'deezer', releaseType: 'single' };
+    expect(resultToAlbum(result, 'srv-1').releaseType).toBe('single');
+  });
+
+  it('uses the actual MusicBrainz artist when the row subtitle is a year', () => {
+    const result: SearchResult = { ...baseResult, source: 'external', externalSource: 'musicbrainz',
+      subtext: '1977', artistName: 'Fleetwood Mac' };
+    expect(resultToAlbum(result, 'srv-1').artist.name).toBe('Fleetwood Mac');
+  });
+
+  it('does not treat an old history entry year as its artist', () => {
+    expect(entityToAlbum({ kind: 'entity', type: 'album', id: 'x-1', title: 'Rumours',
+      subtitle: '1977', cover: { kind: 'none' }, source: 'external' }).artist.name).toBe('');
   });
 });
 

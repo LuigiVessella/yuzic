@@ -1,6 +1,7 @@
 export {
   testConnection,
   downloadTrack,
+  waitForRequestOutcome,
   fetchQueue,
   cancelDownload,
 } from './downloads';

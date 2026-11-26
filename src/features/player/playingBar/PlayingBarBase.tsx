@@ -1,5 +1,5 @@
 import { cappedTypography, fontScaleCap, hitSlopFor, iconSize, spacing } from '@/constants/design';
-import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import { InteractionManager, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Text';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -14,15 +14,11 @@ import { usePlayingState, usePlayingActions } from '@/features/playback/PlayingC
 import { hasDuration } from '@/domain/playback/ContentKind';
 import Animated, {
   useSharedValue,
-  useAnimatedStyle,
   withSpring,
   runOnJS,
-  interpolate,
-  Extrapolation,
 } from 'react-native-reanimated';
 import {
   PLAYER_SPRING,
-  coverHandedOver,
   usePlayerExpansion,
 } from '@/features/player/PlayerExpansion';
 import { settleFromBar } from '@/features/player/settle';
@@ -37,18 +33,6 @@ import SpinningLoaderCircle from '@/components/SpinningLoaderCircle';
 import Touchable from '@/components/Touchable';
 
 const PLACEHOLDER_ICON_SIZE = 32;
-
-/**
- * The faintest the bar is drawn while the player is rising over it.
- *
- * Not zero, deliberately. By the quarter of the travel where this is reached
- * the player's own surface is on its way over the dock, so the bar has
- * something in front of it and does not need to be invisible to be unseen — and
- * a value that can never reach zero is a bar that can never *disappear*, which
- * is the failure mode of #211. The thresholds themselves live in
- * `features/player/settle.ts` with the rest of the drag's arithmetic.
- */
-const BAR_MIN_OPACITY = 0.02;
 
 /**
  * The now-playing row at the top of the tab dock. iOS and Android draw it the
@@ -70,11 +54,12 @@ function PlayingBarBase() {
 
   const { currentSong, isPlaying, isBuffering } = usePlayingState();
   const { pauseSong, resumeSong } = usePlayingActions();
-  const { expansion, barCover, fullCover, expand, prepare } = usePlayerExpansion();
+  const { expansion, expand, prepare, interactionEpoch } = usePlayerExpansion();
 
   // Whether the drag below actually moved the player. A gesture that decided
   // nothing must not settle as though it decided something — see `settle.ts`.
   const dragMoved = useSharedValue(false);
+  const gestureEpoch = useSharedValue(0);
 
   const playlistSheetRef = useSheetRef();
   const castSheetRef = useSheetRef();
@@ -86,29 +71,7 @@ function PlayingBarBase() {
     presentCast: () => castSheetRef.current?.present(),
   });
 
-  // Where the thumbnail sits on screen, so the player knows where to fly the
-  // cover from. Measured rather than computed: the dock changes height with
-  // the safe area and with the translucent setting, and a hardcoded rect would
-  // be wrong on exactly the devices hardest to check.
-  const coverRef = useRef<View>(null);
-  const measureCover = useCallback(() => {
-    coverRef.current?.measureInWindow((x, y, width) => {
-      if (width > 0) barCover.value = { x, y, size: width };
-    });
-  }, [barCover]);
-
-  // Build the player screen once there is something to open, rather than at
-  // the touch that opens it.
-  //
-  // `prepare` also runs from the press and the drag, but both of those are
-  // touch-down: the screen mounts as the gesture starts, so its cover slot is
-  // still unmeasured for the first frames and `coverHandedOver` stays false
-  // until the measurement lands mid-drag. That is why the first open of a
-  // session animated differently from every one after it — by the second, the
-  // slot had been measured and the handover could start from the first frame.
-  //
-  // After interactions, so it never competes with the track that has just
-  // started playing; a track change is the one place this tree must stay cheap.
+  // Prepare after interactions; the thumbnail remains owned by this bar.
   const hasSong = currentSong != null;
   useEffect(() => {
     if (!hasSong) return;
@@ -127,7 +90,6 @@ function PlayingBarBase() {
 
   const handleExpand = () => {
     if (!currentSong) return;
-    measureCover();
     expand();
   };
 
@@ -148,10 +110,11 @@ function PlayingBarBase() {
         .failOffsetX([-24, 24])
         .onBegin(() => {
           dragMoved.value = false;
+          gestureEpoch.value = interactionEpoch.value;
           runOnJS(prepare)();
-          runOnJS(measureCover)();
         })
         .onUpdate(event => {
+          if (gestureEpoch.value !== interactionEpoch.value) return;
           dragMoved.value = true;
           expansion.value = Math.min(1, Math.max(0, -event.translationY / height));
         })
@@ -159,38 +122,20 @@ function PlayingBarBase() {
         // settles too. An exit that names no end is what leaves the bar faded
         // out with the music still playing (#211).
         .onFinalize(event => {
+          if (gestureEpoch.value !== interactionEpoch.value) return;
           const target = settleFromBar(expansion.value, event.velocityY, dragMoved.value);
           // A tap: the pressable already started the spring it meant.
           if (target === null) return;
           expansion.value = withSpring(target, PLAYER_SPRING);
         }),
-    [currentSong, dragMoved, expansion, height, measureCover, prepare],
+    [currentSong, dragMoved, expansion, height, prepare, gestureEpoch, interactionEpoch],
   );
 
-  // The bar's own contents step aside early in the travel, leaving the cover
-  // to make the journey on its own.
-  //
-  // Floored at the point the full player has actually covered the bar, so this
-  // can only ever hide the bar *behind something*. Fading to a true zero is
-  // what turned a stuck intermediate expansion into a bar that had vanished
-  // outright (#211): invisible, mounted, and still holding its slot in the
-  // dock. The gestures above now always settle, so nothing should park here —
-  // and if something ever does, it looks wrong rather than gone.
-  const barFadeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(expansion.value, [0, 0.25], [1, BAR_MIN_OPACITY], Extrapolation.CLAMP),
-  }));
-
-  // The thumbnail is handed over to the player host as soon as the host can
-  // actually draw it, so there is one piece of cover art in the air rather
-  // than two — or, as there used to be on the first drag of a session, none.
-  const coverHandoffStyle = useAnimatedStyle(() => ({
-    opacity: coverHandedOver(expansion.value, barCover.value, fullCover.value) ? 0 : 1,
-  }));
 
   return (
     <>
       <GestureDetector gesture={dragToOpen}>
-        <Animated.View style={barFadeStyle}>
+        <View>
           <Touchable
             accessibilityLabel={currentSong ? t('a11y.player.nowPlayingBar') : t('a11y.player.noSongPlaying')}
             accessibilityRole="button"
@@ -198,17 +143,16 @@ function PlayingBarBase() {
             onPressIn={prepare}
             onPress={handleExpand}
           >
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: colors.card, borderRadius: rad.card }]}>
               <View style={styles.topRowWrapper}>
                 <View style={styles.topRow}>
                   <Animated.View
-                    ref={coverRef}
-                    onLayout={measureCover}
-                    style={[styles.coverArt, { borderRadius: rad.thumb }, coverHandoffStyle]}
+                    style={[styles.coverArt, { borderRadius: rad.thumb } ]}
                   >
                     {currentSong?.cover ? (
                       <MediaImage
                         cover={currentSong.cover}
+                        fallbackCover={currentSong.album.cover}
                         size="thumb"
                         style={styles.coverFill}
                       />
@@ -245,7 +189,7 @@ function PlayingBarBase() {
                       accessibilityRole="button"
                       testID="playing-bar-play-pause"
                       style={styles.playPauseButton}
-                      onPress={handlePlayPause}
+                      onPress={event => { event.stopPropagation(); void handlePlayPause(); }}
                       hitSlop={hitSlopFor(iconSize.control)}
                     >
                       {isBuffering
@@ -268,7 +212,7 @@ function PlayingBarBase() {
                         ? undefined
                         : { selected: primaryAction.selected }}
                       style={styles.actionButton}
-                      onPress={primaryAction.onPress}
+                      onPress={event => { event.stopPropagation(); primaryAction.onPress(); }}
                       hitSlop={hitSlopFor(iconSize.control)}
                     >
                       {primaryAction.icon}
@@ -288,7 +232,7 @@ function PlayingBarBase() {
               )}
             </View>
           </Touchable>
-        </Animated.View>
+        </View>
       </GestureDetector>
 
       <PlaylistList
@@ -303,17 +247,20 @@ function PlayingBarBase() {
 }
 
 const styles = StyleSheet.create({
-  // No margins, radius or shadow: the bar is the top row of the tab dock,
-  // not a card resting on it. The dock owns the surface and the hairline.
+  // An inset surface inside the existing dock; expansion and gestures still
+  // measure the same artwork view.
   container: {
     flexDirection: 'column',
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+    overflow: 'hidden',
     // Equal above the row and below it. Tighter than the gap around the
     // 40pt cover was: the art grows into this padding rather than pushing
     // the row taller, so the cover gains prominence and the bar does not
     // gain height.
     paddingTop: spacing.sm,
     paddingBottom: 0,
-    paddingHorizontal: spacing.page,
+    paddingHorizontal: spacing.sm,
   },
   topRowWrapper: {
     justifyContent: 'center',

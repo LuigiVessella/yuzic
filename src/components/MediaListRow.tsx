@@ -14,6 +14,7 @@ type Props = {
   title: string;
   subtitle?: string;
   cover: CoverSource;
+  fallbackCover?: CoverSource;
   onPress?: () => void;
   disabled?: boolean;
   /** Rendered inside the touchable before the cover, e.g. a track index */
@@ -46,6 +47,7 @@ export default function MediaListRow({
   title,
   subtitle,
   cover,
+  fallbackCover,
   onPress,
   disabled,
   leading,
@@ -102,6 +104,7 @@ export default function MediaListRow({
           {showCover && (
             <MediaImage
               cover={cover}
+              fallbackCover={fallbackCover}
               size={isCompact ? 'thumb' : 'grid'}
               style={[
                 styles.cover,
@@ -157,6 +160,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   cover: {
     width: controlSize.mediaRowArt,
@@ -182,8 +186,8 @@ const styles = StyleSheet.create({
   textContainerNoCover: {
     marginLeft: 0,
   },
-  title: typography.rowTitle,
-  compactTitle: typography.compactRowTitle,
+  title: { ...typography.rowTitle, fontWeight: '500' },
+  compactTitle: { ...typography.compactRowTitle, fontWeight: '500' },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

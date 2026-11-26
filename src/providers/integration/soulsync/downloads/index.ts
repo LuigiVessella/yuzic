@@ -69,7 +69,27 @@ export async function downloadTrack(
     method: 'POST',
     body: JSON.stringify({ query: buildQuery(req) }),
   });
-  return { requestId: String(data?.request_id ?? '') };
+  if (!data?.request_id) {
+    throw new Error('SoulSync accepted the request without a request id');
+  }
+  return { requestId: data.request_id };
+}
+
+type RequestStatus = { status?: string; error?: string | null };
+type RequestOutcome = 'downloading' | 'completed' | 'not_found' | 'failed' | 'unconfirmed';
+
+/** A 202 only queues the search. Confirm that SoulSync found a transfer before reporting success. */
+export async function waitForRequestOutcome(config: SoulSyncConfig, requestId: string): Promise<RequestOutcome> {
+  const client = createSoulSyncClient(config);
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const data = await client.request<RequestStatus>(`/request/${encodeURIComponent(requestId)}`);
+    if (data.status === 'downloading' || data.status === 'completed'
+      || data.status === 'not_found' || data.status === 'failed') return data.status;
+    if (data.status !== 'queued' && data.status !== 'searching') return 'unconfirmed';
+    await new Promise<void>(resolve => setTimeout(resolve, 3_000));
+  }
+  return 'unconfirmed';
 }
 
 export async function fetchQueue(config: SoulSyncConfig): Promise<SoulSyncQueueRecord[]> {

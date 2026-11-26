@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 
 import { QueryKeys } from '@/state/query/queryKeys'
-import { selectSourceUse } from '@/features/settings/sources/state';
+import { selectSourceUse, selectSourceServerUrls } from '@/features/settings/sources/state';
 import { ARTIST_ID_LOOKUP_USE, lookupArtistId } from '@/providers/registry/pageSources'
 
 /**
@@ -36,6 +36,7 @@ export function useArtistMbid(
   options: { enabled?: boolean; allowLookup?: boolean } = {}
 ): { mbid: string | null; isResolving: boolean } {
   const lookupSourceEnabled = useSelector(selectSourceUse(ARTIST_ID_LOOKUP_USE))
+  const serverUrls = useSelector(selectSourceServerUrls)
   const lookupAllowed = options.allowLookup ?? lookupSourceEnabled
   const trimmed = artistName?.trim() ?? ''
   const known = localMbid?.trim() || null
@@ -43,7 +44,7 @@ export function useArtistMbid(
     lookupAllowed && (options.enabled ?? true) && !known && trimmed.length > 0
 
   const query = useQuery<string | null>({
-    queryKey: [QueryKeys.ArtistMbid, trimmed.toLowerCase()],
+    queryKey: [QueryKeys.ArtistMbid, trimmed.toLowerCase(), serverUrls],
     queryFn: () => lookupArtistId(trimmed),
     enabled: shouldLookUp,
     staleTime: 1000 * 60 * 60 * 24,

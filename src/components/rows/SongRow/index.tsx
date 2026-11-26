@@ -105,6 +105,7 @@ const ExternalSongRowView: React.FC<{
         title={song.title}
         subtitle={song.artist.name || albumArtist}
         cover={song.cover}
+        fallbackCover={song.album.cover}
         onPress={handlePress}
         showCover={false}
         variant="compact"
@@ -222,6 +223,7 @@ const SongRow: React.FC<Props> = ({
         testID="song-row"
         subtitle={`${song.artist.name || t('songOptions.unknownArtist')}${!isAlbumCompact ? ` • ${formatDuration(song.durationSeconds)}` : ''}`}
         cover={song.cover}
+        fallbackCover={song.album.cover}
         onPress={handlePress}
         disabled={!onPress && !collection}
         showCover={!isAlbumCompact}

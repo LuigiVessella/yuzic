@@ -1,4 +1,5 @@
 import type { PlayerBackend } from '@/features/player/backend';
+import type { Fields } from '@/features/diagnostics/record';
 import type { PlayableResource } from '@/features/playback/playableResource';
 import type { Song } from '@/domain/entities/Song';
 import type { ContentKind } from '@/domain/playback/ContentKind';
@@ -50,6 +51,8 @@ function harness(over: Partial<{
   now: number;
   /** Move to the next queue entry when a track is dropped, as the engine does. */
   advanceOnRemove: boolean;
+  unresolvable: string[];
+  connectionProblem: () => 'offline' | 'serverUnreachable' | null;
 }> = {}) {
   const queue = over.queue ?? [resource('1'), resource('2')];
   let currentQueue = queue;
@@ -61,6 +64,7 @@ function harness(over: Partial<{
   const removed: number[] = [];
   const toasts: number[] = [];
   const stops: number[] = [];
+  const logged: Fields[] = [];
 
   const backend = {
     seekTo: (s: number) => { engineCalls.push({ name: 'seekTo', args: [s] }); },
@@ -78,12 +82,12 @@ function harness(over: Partial<{
     queue: () => currentQueue,
     currentIndex: () => index,
     // A refreshed URL, which is the whole point of the retry path.
-    refreshResource: song => ({
+    refreshResource: song => (over.unresolvable ?? []).includes(song.nativeId) ? null : ({
       song,
       streamUrl: `https://server.test/stream/${song.nativeId}?token=fresh`,
     }),
     toMediaItems: resources => resources.map(r => ({ mediaId: r.song.localId, url: r.streamUrl })),
-    replaceQueue: resources => { currentQueue = resources; },
+    replaceQueue: (resources, _keptIndices, nextIndex) => { currentQueue = resources; index = nextIndex; },
     setCurrentResource: r => { current = r; },
     removeFailedCurrentTrack: () => {
       removed.push(1);
@@ -91,7 +95,9 @@ function harness(over: Partial<{
     },
     notifyError: () => { toasts.push(now); },
     notifyStopped: () => { stops.push(now); },
-    logFailure: () => {},
+    connectionProblem: over.connectionProblem ?? (() => null),
+    setConnectionInterrupted: () => {},
+    logFailure: info => { logged.push(info); },
     now: () => now,
   };
 
@@ -101,14 +107,48 @@ function harness(over: Partial<{
     removed,
     toasts,
     stops,
+    logged,
     get queue() { return currentQueue; },
     get current() { return current; },
+    get index() { return index; },
     advance: (ms: number) => { now += ms; },
   };
 }
 
 const names = (calls: { name: string }[]) => calls.map(c => c.name);
 const fail = { message: 'boom' };
+
+it('keeps the second occurrence and its position through an outage and explicit retry', () => {
+  let offline = true;
+  const one = resource('1');
+  const queue = [one, one, resource('2')];
+  const h = harness({ queue, currentIndex: 1, position: 57, unresolvable: ['2'],
+    connectionProblem: () => offline ? 'offline' : null });
+
+  h.handlers.onError(fail);
+  h.handlers.onError(fail);
+  expect(h.handlers.retryConnection()).toBe(true);
+  expect(h.queue).toBe(queue);
+  expect(names(h.engineCalls)).toEqual(['pause']);
+  expect(h.removed).toHaveLength(0);
+  expect(h.logged[0].connectionProblem).toBe('offline');
+
+  offline = false;
+  expect(h.handlers.retryConnection()).toBe(true);
+  expect(names(h.engineCalls)).toEqual(['pause', 'setMediaItems', 'seekTo', 'play']);
+  expect(h.engineCalls[1].args[1]).toBe(1);
+  expect(h.engineCalls[2].args).toEqual([57]);
+  expect(h.queue[2]).toBe(queue[2]);
+});
+
+it('preserves a remote track after retrying a native connection failure', () => {
+  const h = harness();
+  const networkError = { ...fail, domain: 'ERROR_CODE_IO_NETWORK_CONNECTION_FAILED' };
+  h.handlers.onError(networkError);
+  h.handlers.onError(networkError);
+  expect(h.removed).toHaveLength(0);
+  expect(names(h.engineCalls)).toEqual(['setMediaItems', 'play', 'pause']);
+});
 
 describe('a track that cannot be refreshed', () => {
   it('drops a failed preview immediately rather than retrying it', () => {
@@ -287,5 +327,90 @@ describe('a run of tracks that will not play', () => {
     expect(names(h.engineCalls).filter(n => n === 'setMediaItems')).toHaveLength(retriesBefore + 1);
     expect(h.removed).toHaveLength(MAX_DEAD_TRACKS_IN_A_ROW - 1);
     expect(h.stops).toHaveLength(2);
+  });
+});
+
+describe('retry keeps the active queue occurrence', () => {
+  it('remaps the index when an earlier resource cannot be refreshed', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('c')], currentIndex: 1, unresolvable: ['a'] });
+    h.handlers.onError(fail);
+    expect(h.index).toBe(0);
+    expect(h.current?.song.nativeId).toBe('b');
+    expect(h.engineCalls.find(call => call.name === 'setMediaItems')?.args[1]).toBe(0);
+  });
+  it('tracks the second duplicate by position instead of matching the first id', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('b')], currentIndex: 2, unresolvable: ['a'] });
+    h.handlers.onError(fail);
+    expect(h.index).toBe(1);
+  });
+  it('stops without replacing or dropping the queue if the active track cannot resolve', () => {
+    const h = harness({ queue: [resource('a'), resource('b'), resource('c')], currentIndex: 1, unresolvable: ['b'] });
+    h.handlers.onError(fail);
+    expect(h.queue).toHaveLength(3);
+    expect(h.current?.song.nativeId).toBe('b');
+    expect(names(h.engineCalls)).toEqual(['pause']);
+    expect(h.removed).toEqual([]);
+    expect(h.stops).toHaveLength(1);
+  });
+});
+
+describe('what a failure is recorded as', () => {
+  // The record is what #324, #320 and #318 get diagnosed from, and until 1.3.0
+  // the only thing the engine offered was a sentence built for a listener —
+  // which on iOS interpolates an NSError that carries the failing URL, and
+  // every stream URL this app builds carries the user's credentials.
+  it('keeps the engine\'s own account of the failure, not just its sentence', () => {
+    const h = harness({ queue: [resource('1')] });
+
+    h.handlers.onError({
+      code: 'PLAYBACK_FAILED',
+      message: 'Could not open Track 1: timed out',
+      operation: 'stream',
+      domain: 'NSURLErrorDomain',
+      underlyingCode: -1001,
+    });
+
+    expect(h.logged[0]).toMatchObject({
+      code: 'PLAYBACK_FAILED',
+      operation: 'stream',
+      domain: 'NSURLErrorDomain',
+      underlyingCode: -1001,
+      songId: '1',
+    });
+  });
+
+  it('says nothing about the engine id when it agrees with the current track', () => {
+    // Equal is the normal case. Recording it anyway would put a second copy of
+    // the same id in every record, and bury the case below. Undefined rather
+    // than absent is enough: `fieldsOf` drops undefined on the way out, so it
+    // never reaches the export the user sends.
+    const h = harness({ queue: [resource('1')] });
+
+    h.handlers.onError({ message: 'boom', id: '1' });
+
+    expect(h.logged[0]?.engineId).toBeUndefined();
+  });
+
+  it('records the engine id when it disagrees with the current track', () => {
+    // The app handles a failure against whatever it thinks is playing — it
+    // drops that track and retries that queue. If the engine failed on a
+    // different one, every decision after this point is being made about the
+    // wrong song, and nothing else in the record would show it.
+    const h = harness({ queue: [resource('1')] });
+
+    h.handlers.onError({ message: 'boom', id: '7' });
+
+    expect(h.logged[0]).toMatchObject({ engineId: '7', songId: '1' });
+  });
+
+  it('still records a failure the engine could not classify', () => {
+    // `operation` is absent on errors raised outside playback. The record has
+    // to survive that rather than depend on it.
+    const h = harness({ queue: [resource('1')] });
+
+    h.handlers.onError({ message: 'boom' });
+
+    expect(h.logged).toHaveLength(1);
+    expect(h.logged[0]).toMatchObject({ songId: '1', detail: 'boom' });
   });
 });

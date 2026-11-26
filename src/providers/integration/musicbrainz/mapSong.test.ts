@@ -94,7 +94,7 @@ describe('mapSong', () => {
       durationSeconds: 0,
       contentKind: 'song',
       genres: [],
-      externalIds: { mbid: 'tr-1' },
+      externalIds: {},
     });
     expect(mapSong(minimal, { provenance, releaseGroup }).artist.name).toBe('Unknown Artist');
   });

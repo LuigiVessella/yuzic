@@ -1,5 +1,5 @@
 /** Supported language codes */
-type LanguageCode = 'en' | 'ja' | 'fr' | 'zh';
+type LanguageCode = 'en' | 'ja' | 'fr' | 'zh' | 'it';
 
 interface LanguageOption {
   /** ISO 639-1 code used by i18next */
@@ -16,6 +16,7 @@ export const AVAILABLE_LANGUAGES: LanguageOption[] = [
   { code: 'ja', nativeName: '日本語', translationKey: 'settings.appearance.language.japanese' },
   { code: 'fr', nativeName: 'Français', translationKey: 'settings.appearance.language.french' },
   { code: 'zh', nativeName: '中文', translationKey: 'settings.appearance.language.chinese' },
+  { code: 'it', nativeName: 'Italiano', translationKey: 'settings.appearance.language.italian' },
 ];
 
 /** Look up a language entry by its code */

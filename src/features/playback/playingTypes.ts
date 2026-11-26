@@ -15,6 +15,7 @@ export interface PlayingStateType {
   currentSong: Song | null;
   isPlaying: boolean;
   isBuffering: boolean;
+  connectionInterrupted: boolean;
   currentIndex: number;
   /** @deprecated use repeatMode instead */
   repeatOn: boolean;

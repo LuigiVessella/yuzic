@@ -40,6 +40,7 @@ export interface PlaybackStarterDeps {
   resolvePlayableSong: (song: Song) => PlayableResource | null;
   toMediaItems: (resources: PlayableResource[]) => MediaItem[];
   bumpQueue: () => void;
+  resetPosition: () => void;
   loadQueue: (resources: PlayableResource[], startIndex: number) => Promise<void>;
   /** Injected so an ad-hoc queue's generated context id is predictable in tests. */
   now: () => number;
@@ -98,6 +99,7 @@ export function createPlaybackStarters(deps: PlaybackStarterDeps): PlaybackStart
     index: number,
     source: QueueSegmentSource
   ) => {
+    deps.resetPosition();
     deps.setQueue(resources);
     deps.setSegments([{ startIndex: 0, length: resources.length, source }]);
     deps.setActive(index, resources[index]);

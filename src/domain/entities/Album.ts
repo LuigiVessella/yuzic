@@ -3,6 +3,12 @@ import type { LocalId } from '../identity/LocalId';
 import type { EntityCore } from './EntityCore';
 import type { ArtistRef } from './EntityRef';
 
+export function albumArtistLabel(album: Album, unknownArtist: string): string {
+  return (album.albumArtists ?? [album.artist])
+    .map(({ name }) => name && name !== 'Unknown Artist' ? name : unknownArtist)
+    .join(' / ');
+}
+
 /** What an album release is, where the origin says. */
 export type ReleaseType = 'album' | 'single' | 'ep' | 'compilation';
 
@@ -19,6 +25,8 @@ export interface Album extends EntityCore {
   title: string;
   cover: CoverSource;
   artist: ArtistRef;
+  /** Ordered credits when the server supplies multiple album artists. */
+  albumArtists?: ArtistRef[];
   /** Release year, where the origin reports one. */
   year?: number;
   /** Full release date as reported, where finer than a year. */

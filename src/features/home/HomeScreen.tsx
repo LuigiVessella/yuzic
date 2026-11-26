@@ -68,6 +68,7 @@ export default function HomeScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <TabHeader
+        branded
         title="Yuzic"
         username={username}
         onAccountPress={openAccountSheet}

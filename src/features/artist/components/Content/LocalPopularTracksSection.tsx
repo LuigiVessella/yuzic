@@ -1,7 +1,7 @@
 import React from 'react'
 import type { Artist } from '@/domain/entities/Artist'
 import { useArtistTopTracks } from '@/features/artist/useArtistTopTracks'
-import { useArtistCatalogueEnabled } from '@/providers/registry/artistSources'
+import { artistCatalogueIdOf, useArtistCatalogueEnabled } from '@/providers/registry/artistSources'
 import PopularTracksSection from './PopularTracksSection'
 
 /**
@@ -16,6 +16,7 @@ export default function LocalPopularTracksSection({ artist }: { artist: Artist }
   const { topTracks } = useArtistTopTracks({
     name: artist.name,
     mbid: artist.externalIds.mbid,
+    catalogueId: artistCatalogueIdOf(artist),
     enabled: catalogueEnabled,
   })
   return <PopularTracksSection topTracks={topTracks} artistId={artist.nativeId} artistName={artist.name} />

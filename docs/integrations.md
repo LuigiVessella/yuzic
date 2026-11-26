@@ -159,6 +159,12 @@ mapper reports a real gap rather than a URL that 404s — Navidrome 0.64+ omits
 `coverArt`, Jellyfin/Emby report no `ImageTags.Primary` — and names the item,
 so cover resolution can try the library's copy and then the Artwork backups.
 
+MediaBrowser track references retain the payload's `Album` title and an
+independent parent-album cover. A failed track image can therefore use album
+artwork without retrying the same track URL. Album-detail responses still
+provide their known cover directly; existing cached tracks use the library
+album fallback where available until the next sync updates their references.
+
 ### Client certificates (mTLS)
 
 For a server behind a reverse proxy that asks the *client* to prove who it is.
@@ -278,7 +284,9 @@ for what it is for:
   used only on a same-name match (after Cover Art Archive for albums).
 - **Pages** — similar artists, popular tracks, 30-second previews, and
   recommendations on artist, album and playlist screens.
-- **Search** — Deezer results under Other sources.
+- **Search** — track, album and artist results in a separate Deezer section
+  when its Search use is enabled. Deezer tracks are metadata with previews,
+  never full-audio library songs.
 - **Home** — charts and genre shelves. Off by default, and absent when offline.
 
 This replaced a single "discovery" switch that turned on things nobody had
@@ -363,6 +371,11 @@ per-server, and shows its own live transfer queue in the app. When a transfer
 finishes, the app nudges your music server to rescan so the new music appears
 without a manual pull (`src/features/downloaders/DownloadersQueueContext.tsx`).
 
+Queue reads keep their last successful snapshot through temporary errors and
+back off per downloader from 30 seconds up to 4 minutes. A manual refresh can
+retry sooner. Responses from an old connection are ignored. Completions
+observed within 500 ms share a server scan and its catalog refreshes.
+
 | Downloader | Label in app | Albums | Individual tracks | Settings |
 | --- | --- | --- | --- | --- |
 | [Lidarr](https://lidarr.audio) | Lidarr | ✅ | — (Lidarr is album-oriented) | Server URL + API key (Lidarr → Settings → General) |
@@ -404,6 +417,8 @@ configured makes **no** requests to any of these hosts.
   a section that doesn't render — rather than an error state, because none of
   it is load-bearing. Downloader and scrobble calls surface a real error,
   because the user asked for those directly.
+  Unified search shows an unavailable source by name and can retry that source
+  while keeping the results already received.
 - **Auth.** Bearer/token headers where the service needs one (see the tables);
   Deezer and MusicBrainz are unauthenticated; Last.fm uses a bundled read-only
   `api_key` with no signing or session.
@@ -501,10 +516,12 @@ No auth. `src/providers/integration/deezer/`.
 
 | Endpoint | Used for | Cache |
 | --- | --- | --- |
-| `GET /search/artist` | Resolving an artist by name; Deezer results in search; Metadata › Artwork backup for an artist photo (used only when the lead artist's name matches — "A feat. B" looks up A) | 12h |
+| `GET /search/artist` | Resolving an artist by name; checking same-name profiles against owned albums; Deezer results in search; Metadata › Artwork backup for an artist photo (used only when the lead artist's name matches — "A feat. B" looks up A) | 12h |
 | `GET /search/album` | Resolving an album; Deezer results in search; preview lookup; Metadata › Artwork backup for an album cover (same title and lead artist only) | 12h |
 | `GET /artist/{id}` | External artist page | 7d |
-| `GET /artist/{id}/albums` | Discography on an external artist page | 1d |
+| `GET /search/track` | Track results in Search | 12h |
+| `GET /track/{id}` | Reopening a track from Search history | -- |
+| `GET /artist/{id}/albums` | Discography on an artist page; matching an owned album to an ambiguous artist profile | 1d |
 | `GET /artist/{id}/related` | Similar artists | 7d |
 | `GET /artist/{id}/top` | Top tracks on an artist page | 1d |
 | `GET /album/{id}` | External album page | 1d |
@@ -524,10 +541,23 @@ with the same `User-Agent`.
 | Endpoint | Used for |
 | --- | --- |
 | `GET /artist?query=` | Resolving an artist by name |
-| `GET /artist/{mbid}?inc=release-groups` | External artist page + discography |
+| `GET /artist/{mbid}?inc=release-groups` | External artist page + initial discography |
+| `GET /release-group?artist={mbid}&inc=artist-credits&limit=25&offset=` | Progressive discography, including releases beyond the lookup's 25-item limit |
 | `GET /release-group?query=` | Resolving an album by artist + title (never to find a cover) |
 | `GET /release-group/{mbid}?inc=artist-credits` | External album page |
-| `GET /release?release-group={mbid}&inc=recordings+artist-credits` | Track list for an album |
+| `GET /recording?query=` | Recording results in Search |
+| `GET /recording/{mbid}?inc=artist-credits+releases` | Reopening a recording from Search history |
+| `GET /release?release-group={mbid}&status=official&inc=media&limit=100` | Bounded edition metadata for choosing a representative track list |
+| `GET /release/{mbid}?inc=release-groups+recordings+artist-credits` | Selected edition's tracks; resolving a release id to the release-group Lidarr expects |
+
+Discography pages are published as they arrive. Deezer artist albums use
+`index`/`limit` pagination too, and album tracks continue beyond the embedded
+first page. Name-only automatic resolution accepts only a unique exact
+normalized artist/title match; ambiguous candidates stay in the picker.
+MusicBrainz track lists choose the earliest dated candidate among the first
+100 official editions, preferring physical media on a date tie, then id.
+Only the selected edition's recording list is fetched; disc numbers survive.
+Preview matching checks title, duration and disc before using track position.
 
 Cover art comes from `https://coverartarchive.org/release-group/{mbid}/front-500`,
 built as a URL rather than requested by us — for a MusicBrainz album that is
@@ -614,8 +644,11 @@ No auth, `User-Agent` identifies the app. `src/providers/integration/lrclib/`.
 | `DELETE /transfers/downloads/{username}/{fileId}?remove=false` then `?remove=true` | Cancelling — the first call is allowed to fail, since a file that already finished can't be cancelled |
 
 slskd downloads also reach MusicBrainz (`src/providers/integration/slskd/mb/canonicalize.ts`) to
-turn an MBID into a canonical artist/album/track list before matching filenames
-against it.
+turn a typed release or release-group MBID into canonical artist/album strings
+before matching filenames. The app injects its chosen MusicBrainz client, so
+this lookup respects the configured metadata server. Lidarr requests convert
+release ids to release-group ids before matching `foreignAlbumId`; a failed
+conversion does not silently send an edition id as an album id.
 
 ### SoulSync — your instance, `/api/v1`
 
@@ -628,8 +661,9 @@ the HTTP status says; the client unwraps it so callers see `data` or an Error.
 
 | Endpoint | Used for |
 | --- | --- |
-| `GET /downloads?limit=1` | Connection test — SoulSync has no dedicated status endpoint, so the queue read doubles as one |
-| `POST /request` | Requesting a track. One free-text query; SoulSync runs its own search-match-download pipeline behind it |
+| `GET /downloads?limit=1` | Connection test — verifies address, key, and read access; request permission is checked by SoulSync on `POST /request` |
+| `POST /request` | Requesting a track. Returns 202 and a request id when the search is queued, before a download exists |
+| `GET /request/{requestId}` | Checking whether that search found a transfer, found nothing, failed, or remains unresolved |
 | `GET /downloads?limit=100` | The in-app transfer queue, and spotting finished items |
 | `POST /downloads/{id}/cancel` | Cancelling — takes the peer username in the body, since a transfer is addressed by id *and* peer |
 
@@ -640,6 +674,36 @@ the album's tracks, each its own `POST /request`, one after another
 (`features/downloaders/albumByTracks.ts`); the tracks come from the album's
 catalogue source or the server (`albumTracks.ts`), so any album sheet can offer
 it.
+Yuzic checks each request until SoulSync reports a transfer or a terminal failure;
+an accepted search is not shown as a successful download. If SoulSync has not
+confirmed an outcome after 90 seconds, Yuzic reports that the request remains
+unconfirmed rather than inviting an immediate duplicate request.
+SoulSync's public `POST /api/v1/request` calls its download orchestrator. In
+`hybrid` mode its search tries the configured sources in order (for example
+Soulseek, then YouTube when Soulseek returns no tracks); in `soulseek` mode it
+searches only Soulseek. A log line `Searching Soulseek` rather than `Hybrid
+search (...)` indicates the latter path. The request endpoint selects one
+candidate after search, so its fallback is less complete than the wishlist
+worker's retry pipeline if a found candidate is later rejected or fails.
+Its `completed` status describes the source transfer into SoulSync's downloads
+directory; this endpoint does not create a library-import batch, so it does not
+by itself make the file appear in SoulSync's Downloads page or in Jellyfin/Yuzic.
+SoulSync's `/api/v1/downloads` and Downloads page list batch tasks, which this
+request endpoint does not create.
+SoulSync's separate Auto Import worker scans its configured Staging folder,
+not the Downloads folder used by `/request` unless those paths are explicitly
+configured to coincide.
+The public `POST /api/v1/wishlist/process` retries the entire wishlist, not
+one requested track, and is therefore not used as a substitute.
+
+The Get confirmation identifies the requested unit and flags albums sent as
+individual tracks. Playlist recommendations (including Favourites) pass the
+selected song to the track Get confirmation, not the containing album.
+Only connected downloaders that support individual tracks enable that action.
+To investigate duplicate Jellyfin albums, compare item IDs,
+paths, track lists and album-artist tags in the affected library. Separate
+physical copies can have matching titles and artwork. After correcting verified
+file tags, scan the affected server library and refresh the collection in Yuzic.
 
 ### Downtify — your instance, `/api`
 

@@ -1,6 +1,6 @@
 import { spacing, typography } from '@/constants/design'
 import { useIconSize } from '@/features/theme/useIconSize';
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { useRadius } from '@/features/theme/useRadius'
 import { StyleSheet, View } from 'react-native'
 import { Text } from '@/components/Text'
@@ -69,8 +69,6 @@ export default function ArtistContent({ model }: Props) {
   // Fixed, now that the overflow opens a list rather than growing this one.
   const visibleAlbumsCount = INITIAL_RELEASE_ROWS
   const visibleSinglesCount = INITIAL_RELEASE_ROWS
-  const [showUnownedAlbums, setShowUnownedAlbums] = useState(false)
-  const [showUnownedSingles, setShowUnownedSingles] = useState(false)
 
   const { artist, isLocal, discography } = model
   const { ownedAlbums, ownedSingles, unownedAlbums, unownedSingles } = discography
@@ -86,38 +84,26 @@ export default function ArtistContent({ model }: Props) {
 
       const ownedAlbumItems: ArtistContentItem[] = ownedAlbums.map(album => ({ kind: 'localAlbum' as const, id: `album-${album.localId}`, album }))
       const ownedSingleItems: ArtistContentItem[] = ownedSingles.map(album => ({ kind: 'localAlbum' as const, id: `single-${album.localId}`, album }))
-      const unownedAlbumItems: ArtistContentItem[] = unownedAlbums.map(album => ({ kind: 'externalAlbum' as const, id: `album-ext-${album.localId}`, album }))
-      const unownedSingleItems: ArtistContentItem[] = unownedSingles.map(album => ({ kind: 'externalAlbum' as const, id: `single-ext-${album.localId}`, album }))
 
-      // Owned and unowned releases are kept in separate groups rather than
-      // merged chronologically — unowned releases stay behind a "show
-      // unowned" tile until the user opts in, so scanning what you actually
-      // own isn't interrupted by releases you don't have.
-      if (ownedAlbumItems.length > 0 || unownedAlbumItems.length > 0) {
+      if (ownedAlbumItems.length > 0 || unownedAlbums.length > 0) {
         rows.push({ kind: 'section', id: 'albums-section', title: t('artist.sections.albums') })
         rows.push(...ownedAlbumItems.slice(0, visibleAlbumsCount))
         if (visibleAlbumsCount < ownedAlbumItems.length) {
           rows.push({ kind: 'showMore', id: 'show-more-albums', target: 'albums', remaining: ownedAlbumItems.length - visibleAlbumsCount })
-        } else if (unownedAlbumItems.length > 0) {
-          if (showUnownedAlbums) {
-            rows.push(...unownedAlbumItems)
-          } else {
-            rows.push({ kind: 'showUnowned', id: 'show-unowned-albums', target: 'albums', count: unownedAlbumItems.length })
-          }
+        }
+        if (unownedAlbums.length > 0) {
+          rows.push({ kind: 'showUnowned', id: 'show-unowned-albums', target: 'albums', count: unownedAlbums.length })
         }
       }
 
-      if (ownedSingleItems.length > 0 || unownedSingleItems.length > 0) {
+      if (ownedSingleItems.length > 0 || unownedSingles.length > 0) {
         rows.push({ kind: 'section', id: 'singles-section', title: t('artist.sections.singles') })
         rows.push(...ownedSingleItems.slice(0, visibleSinglesCount))
         if (visibleSinglesCount < ownedSingleItems.length) {
           rows.push({ kind: 'showMore', id: 'show-more-singles', target: 'singles', remaining: ownedSingleItems.length - visibleSinglesCount })
-        } else if (unownedSingleItems.length > 0) {
-          if (showUnownedSingles) {
-            rows.push(...unownedSingleItems)
-          } else {
-            rows.push({ kind: 'showUnowned', id: 'show-unowned-singles', target: 'singles', count: unownedSingleItems.length })
-          }
+        }
+        if (unownedSingles.length > 0) {
+          rows.push({ kind: 'showUnowned', id: 'show-unowned-singles', target: 'singles', count: unownedSingles.length })
         }
       }
 
@@ -151,7 +137,7 @@ export default function ArtistContent({ model }: Props) {
     }
 
     return rows
-  }, [artist, isLocal, ownedAlbums, ownedSingles, unownedAlbums, unownedSingles, model.similarArtists, visibleAlbumsCount, visibleSinglesCount, showUnownedAlbums, showUnownedSingles, t])
+  }, [artist, isLocal, ownedAlbums, ownedSingles, unownedAlbums, unownedSingles, model.similarArtists, visibleAlbumsCount, visibleSinglesCount, t])
 
   const renderContent = useCallback((item: ArtistContentItem) => {
     if (item.kind === 'mostPlayed') {
@@ -186,7 +172,7 @@ export default function ArtistContent({ model }: Props) {
     if (item.kind === 'similar') {
       return isLocal && artist
         ? <LocalSimilarArtistsSection artist={artist} />
-        : <ExternalSimilarArtistsSection similarArtists={model.similarArtists} />
+        : artist ? <ExternalSimilarArtistsSection artist={artist} similarArtists={model.similarArtists} /> : null
     }
 
     // Same tile-row look for both: "keep reading the list" (showMore) and
@@ -198,18 +184,13 @@ export default function ArtistContent({ model }: Props) {
         <Touchable
           style={styles.showMoreRow}
           onPress={() => {
-            if (isUnowned) {
-              if (item.target === 'albums') setShowUnownedAlbums(true)
-              else setShowUnownedSingles(true)
-              return
-            }
             // The rest of a discography is a list, not another five rows.
             // Growing in place meant eight taps to reach the end of a
             // prolific artist, and no way to sort what you finally had.
             navigation.push('artistReleasesView', {
               ...routeParams,
               group: item.target,
-              scope: isLocal ? 'owned' : 'external',
+              scope: isLocal && !isUnowned ? 'owned' : 'external',
             })
           }}
         >
@@ -243,7 +224,7 @@ export default function ArtistContent({ model }: Props) {
         subtextOverride={releaseYearLabel(item.album) ?? undefined}
       />
     )
-  }, [colors, rad.thumb, artist, isLocal, model, navigation, navigateToAlbum, routeParams, setShowUnownedAlbums, setShowUnownedSingles, t, icons])
+  }, [colors, rad.thumb, artist, isLocal, model, navigation, navigateToAlbum, routeParams, t, icons])
 
   // The list is mostly a column of album rows, so it is capped and centred
   // like every other column of rows — but five of its item kinds are not
@@ -284,11 +265,11 @@ export default function ArtistContent({ model }: Props) {
 
 const styles = StyleSheet.create({
   sectionHeader: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.controlGap,
   },
   sectionTitle: {
-    ...typography.navigationTitle,
+    ...typography.sectionTitle,
     paddingHorizontal: spacing.lg,
   },
   showMoreRow: {
@@ -299,13 +280,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   showMoreIcon: {
-    width: 64,
-    height: 64,
+    width: 44,
+    height: 44,
     marginRight: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   showMoreText: {
     ...typography.button,
+    flexShrink: 1,
   },
 })

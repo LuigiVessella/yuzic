@@ -1,5 +1,9 @@
 # Contributing to Yuzic
 
+For `LuigiVessella/yuzic`, use [the fork build and release guide](docs/fork-releases.md).
+Its development branch is `develop`; personal APK releases keep the existing
+Yuzic Test identity and signing certificate. Upstream store releases are separate.
+
 Thanks for your interest in contributing! This doc covers what you need to get
 the app running locally and how changes get merged.
 
@@ -117,14 +121,16 @@ it stays true.
 
 ## Branch model
 
-- `dev` is the integration branch. **Open PRs against `dev`**, not `master`.
-- `master` is the stable/release branch, updated by promoting `dev` via a
+- `develop` is this fork's integration branch. Upstream uses `dev`.
+- `master` is the stable/release branch, updated by promoting `develop` via a
   separate PR — not something contributor PRs should target directly.
 
 ## Touching CI workflows or release config
 
 If your change touches anything under `.github/workflows/` or `fastlane/`,
-read [`AGENTS.md`](AGENTS.md) first. In particular: Android versionCode and
+read [`AGENTS.md`](AGENTS.md) first. The personal fork uses `fork.config.json`
+for its separate `.test` APKs; see [the fork guide](docs/fork-releases.md).
+For upstream store releases, Android versionCode and
 iOS build number are **queried from Play and App Store Connect at build
 time**, never computed locally. A run counter plus a fixed offset is what
 this used to do, and it shipped 2.0.0 underneath an existing build — don't

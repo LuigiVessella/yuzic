@@ -1,8 +1,9 @@
-import type { PlayerBackend } from '@/features/player/backend';
+import type { BackendEvent, PlayerBackend } from '@/features/player/backend';
 import type { MediaItem } from '@/features/player/mediaItem';
 import type { PlayableResource } from '@/features/playback/playableResource';
 import type { Song } from '@/domain/entities/Song';
 import { sourceKind } from '@/features/playback/playableResource';
+import type { Fields } from '@/features/diagnostics/record';
 import { resolvePlaybackErrorAction } from './playbackErrorRecovery';
 
 /** How long a playback-error toast suppresses the next one. */
@@ -54,21 +55,26 @@ export interface PlaybackEventDeps {
    */
   refreshResource: (song: Song) => PlayableResource | null;
   toMediaItems: (resources: PlayableResource[]) => MediaItem[];
-  replaceQueue: (resources: PlayableResource[]) => void;
+  replaceQueue: (resources: PlayableResource[], keptIndices: number[], currentIndex: number) => void;
   setCurrentResource: (resource: PlayableResource | null) => void;
   /** Drop the track that cannot be played and move on. */
   removeFailedCurrentTrack: () => void;
   /** Tell the listener playback stopped because nothing would play. */
   notifyStopped: () => void;
   notifyError: () => void;
-  logFailure: (info: Record<string, unknown>) => void;
+  connectionProblem: (resource: PlayableResource) => 'offline' | 'serverUnreachable' | null;
+  setConnectionInterrupted: (interrupted: boolean) => void;
+  /** Structured, because this is the record #324/#320/#318 are diagnosed from. */
+  logFailure: (info: Fields) => void;
   /** Injected so the toast throttle can be tested without waiting it out. */
   now: () => number;
 }
 
 interface PlaybackEventHandlers {
+  retryConnection: () => boolean;
+  clearConnectionRetry: () => void;
   /** A failure arrived from the player. */
-  onError: (event: { code?: string; message: string }) => void;
+  onError: (event: Omit<Extract<BackendEvent, { type: 'error' }>, 'type'>) => void;
   /**
    * The player is actually playing: it opened the source and has audio.
    *
@@ -100,9 +106,42 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
   let lastErrorToastAt = 0;
   /** Tracks given up on since anything last played — see `MAX_DEAD_TRACKS_IN_A_ROW`. */
   let deadTracksInARow = 0;
+  let interrupted: { resource: PlayableResource; index: number; position: number } | null = null;
+
+  const clearConnectionRetry = () => {
+    if (!interrupted) return;
+    interrupted = null;
+    deps.setConnectionInterrupted(false);
+  };
 
   return {
+    clearConnectionRetry,
+    retryConnection() {
+      if (!interrupted) return false;
+      const { resource, index, position } = interrupted;
+      if (deps.currentResource() !== resource || deps.currentIndex() !== index) {
+        clearConnectionRetry();
+        return false;
+      }
+      if (deps.connectionProblem(resource)) return true;
+      const queue = deps.queue();
+      // Use the refreshed URLs that are available. Keep the original entries
+      // for everything else, including transient media with no URL resolver.
+      const fresh = queue.map(entry => deps.refreshResource(entry.song) ?? entry);
+      clearConnectionRetry();
+      lastRecoveryAttemptedId = null;
+      stallResumes = { songId: null, count: 0 };
+      deadTracksInARow = 0;
+      deps.replaceQueue(fresh, queue.map((_, i) => i), index);
+      deps.setCurrentResource(fresh[index]);
+      const backend = deps.backend();
+      backend.setMediaItems(deps.toMediaItems(fresh), index);
+      if (position > 0) backend.seekTo(position);
+      backend.play();
+      return true;
+    },
     onPlaying() {
+      clearConnectionRetry();
       lastRecoveryAttemptedId = null;
       deadTracksInARow = 0;
     },
@@ -110,15 +149,57 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
     onError(event) {
       const resource = deps.currentResource();
       const song = resource?.song;
+      const remoteStream = resource && sourceKind(resource) === 'remote' && song?.contentKind !== 'preview';
+      const connectionProblem = remoteStream ? deps.connectionProblem(resource) : null;
+      const nativeNetworkError = event.domain === 'ERROR_CODE_IO_NETWORK_CONNECTION_FAILED'
+        || event.domain === 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT'
+        || (event.domain === 'NSURLErrorDomain' && (event.underlyingCode === -1009 || event.underlyingCode === -1005 || event.underlyingCode === -1001));
 
       deps.logFailure({
         code: event.code,
-        message: event.message,
+        // `detail`, not `message`: the record carries its own fixed message,
+        // and this is the player's variable text.
+        detail: event.message,
+        // The engine's own account of the failure, added in 1.3.0. `detail`
+        // above is a sentence built for a listener and is the only field here
+        // that can carry a credential; these cannot, and they group, so a
+        // report with twenty failures can be read by `operation` rather than
+        // by eye. Kept beside `detail` rather than replacing it, because the
+        // sentence still says which track and what the system called it.
+        operation: event.operation,
+        connectionProblem: connectionProblem ?? undefined,
+        domain: event.domain,
+        underlyingCode: event.underlyingCode,
+        // Only when it disagrees with the track the app believes is current.
+        // Equal is the normal case and says nothing; different means the app
+        // handled a failure against the wrong track, which is the bug that
+        // would otherwise be invisible here.
+        engineId: event.id && event.id !== song?.nativeId ? event.id : undefined,
         songId: song?.nativeId,
         title: song?.title,
         source: sourceKind(resource),
-        provenance: song?.provenance,
+        // Flattened: a record holds primitives, and `Provenance` is a union of
+        // two object shapes. Both halves are worth having — a failure on an
+        // integration's record is a different problem from one on the user's
+        // own server.
+        origin: song?.provenance?.origin,
+        originId:
+          song?.provenance?.origin === 'server'
+            ? song.provenance.serverId
+            : song?.provenance?.providerId,
       });
+
+      if (resource && connectionProblem) {
+        const index = deps.currentIndex();
+        if (interrupted?.resource !== resource || interrupted.index !== index) {
+          interrupted = { resource, index, position: deps.backend().getProgress().position };
+          deps.setConnectionInterrupted(true);
+          deps.backend().pause();
+        }
+        return;
+      }
+      if (interrupted?.resource === resource && interrupted.index === deps.currentIndex()) return;
+      clearConnectionRetry();
 
       // A preview URL is issued once and cannot be rebuilt from an id, so
       // there is nothing to refresh and nothing to retry — see
@@ -140,6 +221,14 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         { positionSeconds, stallCount: stallResumes.count }
       );
 
+      if (resource && remoteStream && nativeNetworkError && decision.action === 'escalate') {
+        interrupted = { resource, index: deps.currentIndex(), position: positionSeconds };
+        deps.logFailure({ songId: song?.nativeId, connectionProblem: 'streamNetworkError' });
+        deps.setConnectionInterrupted(true);
+        deps.backend().pause();
+        return;
+      }
+
       if (decision.action === 'resume') {
         stallResumes = { songId, count: decision.nextStallCount };
         // Back to where it was, not back to the start.
@@ -152,12 +241,23 @@ export function createPlaybackEventHandlers(deps: PlaybackEventDeps): PlaybackEv
         lastRecoveryAttemptedId = decision.nextLastRecoveryAttemptedId;
         // Every URL in the queue, not just this track's: they all came from
         // the same session and went stale together.
-        const fresh = deps.queue()
-          .map(entry => deps.refreshResource(entry.song))
-          .filter((entry): entry is PlayableResource => Boolean(entry));
-        deps.replaceQueue(fresh);
-        deps.setCurrentResource(fresh[deps.currentIndex()] ?? resource ?? null);
-        deps.backend().setMediaItems(deps.toMediaItems(fresh), deps.currentIndex());
+        const activeIndex = deps.currentIndex();
+        const kept = deps.queue().map((entry, index) => ({
+          resource: deps.refreshResource(entry.song), index,
+        })).filter((entry): entry is { resource: PlayableResource; index: number } => !!entry.resource);
+        const nextIndex = kept.findIndex(entry => entry.index === activeIndex);
+        // Never silently substitute the next track when the active occurrence
+        // cannot be resolved. Keep the original queue for an explicit retry.
+        if (nextIndex < 0) {
+          deps.backend().pause();
+          deps.notifyStopped();
+          return;
+        }
+        const fresh = kept.map(entry => entry.resource);
+        deps.replaceQueue(fresh, kept.map(entry => entry.index), nextIndex);
+        deps.setCurrentResource(fresh[nextIndex]);
+        deps.backend().setMediaItems(deps.toMediaItems(fresh), nextIndex);
+        if (nativeNetworkError && positionSeconds > 0) deps.backend().seekTo(positionSeconds);
         deps.backend().play();
         return;
       }

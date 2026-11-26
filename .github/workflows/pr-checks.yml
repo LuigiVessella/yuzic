@@ -2,15 +2,30 @@ name: PR Checks
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master, dev, develop]
   pull_request:
-    branches: [master, dev]
+    branches: [master, dev, develop]
 
 concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  fork-tools:
+    name: Fork release tooling
+    if: github.repository == 'LuigiVessella/yuzic'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --omit=dev
+      - name: Test release guards in an isolated repository
+        shell: pwsh
+        run: ./tools/fork/test-release-tools.ps1 -SkipAndroidPreflight
+
   checks:
     name: Lint, Typecheck & Test
     runs-on: ubuntu-latest

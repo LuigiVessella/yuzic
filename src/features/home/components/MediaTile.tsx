@@ -43,7 +43,8 @@ export default memo(MediaTile);
 const styles = StyleSheet.create({
   title: {
     ...typography.compactRowTitle,
-    marginTop: spacing.tight,
+    fontWeight: '500',
+    marginTop: spacing.sm,
   },
   subtitle: {
     ...typography.caption,

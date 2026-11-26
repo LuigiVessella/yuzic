@@ -80,7 +80,9 @@ function harness(over: Partial<{
     },
   } as unknown as PlayerBackend;
 
+  const resetPosition = jest.fn();
   const deps: PlaybackStarterDeps = {
+    resetPosition,
     backend: () => backend,
     queue: () => queue,
     setQueue: next => { queue = next; },
@@ -104,6 +106,7 @@ function harness(over: Partial<{
 
   return {
     starters: createPlaybackStarters(deps),
+    resetPosition,
     active,
     loaded,
     engineCalls,
@@ -331,4 +334,10 @@ describe('startableCollection', () => {
     expect(startableCollection({ album, songs: [] } as unknown as PlayableCollection))
       .toMatchObject({ contextId: 'al-1', contextType: 'album' });
   });
+});
+
+it('explicitly resets the saved position even when starting the same song again', async () => {
+  const h = harness({ queue: [resource('1')] });
+  await h.starters.playSong(song('1'));
+  expect(h.resetPosition).toHaveBeenCalledTimes(1);
 });

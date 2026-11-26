@@ -349,16 +349,24 @@ function toEngineTrackInput(item: BrowseItem, url: string): EngineTrackInput {
  */
 export function toBrowseNode(item: BrowseItem, parentId?: string): BrowseNode {
   const id = parentId ? `${parentId}/${item.mediaId}` : item.mediaId;
+  const seen = new Set<string>();
   return {
     id,
     title: item.title,
     subtitle: item.artist,
+    ...(item.layout ? { layout: item.layout } : {}),
     // The row's own thumbnail — not the same as `playable`'s artwork, since a
     // folder has one and nothing to play. Headers go with it, or a protected
     // server answers 401 for every one; see `BrowseItem.artworkHeaders`.
     artworkUri: item.artworkUrl,
     ...(item.artworkHeaders ? { artworkHeaders: item.artworkHeaders } : {}),
-    children: item.children?.map(child => toBrowseNode(child, id)),
+    children: item.children?.map((child, index) => {
+      // Playlist entries are positions, not song identities. Repeated tracks
+      // keep their playable id but need distinct browse paths.
+      const parent = seen.has(child.mediaId) ? `${id}/entry-${index}` : id;
+      seen.add(child.mediaId);
+      return toBrowseNode(child, parent);
+    }),
     // Same `toEngineTrack` the queue uses — see `EngineTrackInput` — so a
     // playable browse row and a queued track agree on every field, artwork
     // and headers included, instead of the browse tree hand-building a

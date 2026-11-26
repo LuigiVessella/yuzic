@@ -64,6 +64,8 @@ export function mapSong(dto: DeezerTrack, context: MapSongContext): Song {
     album: albumRef(provenance, album),
     cover: albumCover(album),
     durationSeconds: dto.duration ?? 0,
+    trackNumber: dto.track_position,
+    discNumber: dto.disk_number,
     // Every Deezer track is a preview, including this full catalogue record.
     // Deezer's public API never yields full audio — the only stream it offers
     // is a 30-second clip — so a Deezer-sourced track that the player accepted
@@ -103,6 +105,7 @@ export function mapPreviewTrack(dto: DeezerPreviewTrack, context: MapPreviewTrac
     contentKind: 'preview',
     streamId: dto.preview,
     trackNumber: dto.track_position,
+    discNumber: dto.disk_number,
     genres: [],
   };
 }

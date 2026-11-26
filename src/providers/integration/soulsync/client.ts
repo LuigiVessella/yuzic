@@ -19,10 +19,12 @@ type SoulSyncEnvelope<T> = {
 /** Carries SoulSync's own error code so callers can map it to a message. */
 export class SoulSyncError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) {
+  readonly status: number;
+  constructor(code: string, message: string, status: number) {
     super(message);
     this.name = 'SoulSyncError';
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -58,14 +60,14 @@ export function createSoulSyncClient(config: SoulSyncConfig) {
     } catch {
       // A reverse proxy in front of SoulSync, or the wrong URL entirely, will
       // answer with HTML. Say so rather than reporting "undefined".
-      throw new SoulSyncError('BAD_RESPONSE', `SoulSync sent a non-JSON reply (${res.status})`);
+      throw new SoulSyncError('BAD_RESPONSE', `SoulSync sent a non-JSON reply (${res.status})`, res.status);
     }
 
     if (envelope?.error) {
-      throw new SoulSyncError(envelope.error.code, envelope.error.message);
+      throw new SoulSyncError(envelope.error.code, envelope.error.message, res.status);
     }
     if (!res.ok) {
-      throw new SoulSyncError('HTTP_ERROR', `SoulSync API error (${res.status})`);
+      throw new SoulSyncError('HTTP_ERROR', `SoulSync API error (${res.status})`, res.status);
     }
 
     return (envelope?.data ?? ({} as T));

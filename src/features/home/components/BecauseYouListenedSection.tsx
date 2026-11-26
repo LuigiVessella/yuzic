@@ -8,6 +8,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { selectHomeShelfItemCount } from '@/features/settings/home/state';
 import { useTheme } from '@/features/theme/useTheme'
 import { useArtists } from '@/features/artist/useArtists';
+import { useLocalFirst } from '@/features/library/useLocalFirst';
 import { usePrefetchCovers } from '@/features/library/usePrefetchCovers'
 import { prefetchCovers } from '@/features/artwork/imageCache'
 import { useSourceUse } from '@/features/settings/sources/useSourceUse'
@@ -20,7 +21,7 @@ import {
 import { ShelfCarousel } from './ShelfCarousel'
 import { CATALOGUE_HOME_USE, fetchAlbumsLikeArtist } from '@/providers/registry/homeDiscovery'
 import { QueryKeys } from '@/state/query/queryKeys'
-import { getDayKey } from '@/features/home/hooks/useDailyLayout'
+import { getDayKey, getDailySeed } from '@/features/home/hooks/useDailyLayout'
 import SelectionBottomSheet from '@/components/SelectionBottomSheet'
 import OptionsTile from './OptionsTile'
 import type { Album } from '@/domain/entities/Album';
@@ -38,6 +39,7 @@ export default function BecauseYouListenedSection({ artistName, refreshKey = 0 }
   const { colors } = useTheme()
   const rad = useRadius()
   const { artists: libraryArtists } = useArtists()
+  const { localAlbum } = useLocalFirst()
   const { navigateToAlbum } = useMatchedNavigation()
   const sheetRef = useRef<BottomSheetModal>(null)
   const dayKey = getDayKey()
@@ -57,11 +59,6 @@ export default function BecauseYouListenedSection({ artistName, refreshKey = 0 }
     [libraryArtists]
   )
 
-  const libraryArtistNames = useMemo(
-    () => new Set(libraryArtists.map(a => a.name.toLowerCase())),
-    [libraryArtists]
-  )
-
   const handleSelect = useCallback((value: string) => {
     setSelectedArtist(value)
     sheetRef.current?.dismiss()
@@ -76,17 +73,15 @@ export default function BecauseYouListenedSection({ artistName, refreshKey = 0 }
   }, [artistNames, selectedArtist])
 
   const query = useQuery<Album[]>({
-    // Include libraryArtists.length so the exclusion set (libraryArtistNames)
-    // stays fresh: new library artists should stop appearing in suggestions
-    // rather than waiting out the full 12h staleTime.
-    queryKey: [QueryKeys.ExploreBecauseYouListened, dayKey, selectedArtist, libraryArtists.length, refreshKey, itemCount],
-    queryFn: () => fetchAlbumsLikeArtist(selectedArtist, libraryArtistNames, { relatedLimit: HOME_RELATED_ARTIST_LIMIT, targetAlbums: itemCount }),
+    // Cache catalogue candidates; apply current library exclusions below.
+    queryKey: [QueryKeys.ExploreBecauseYouListened, dayKey, selectedArtist, refreshKey, itemCount],
+    queryFn: () => fetchAlbumsLikeArtist(selectedArtist, { relatedLimit: HOME_RELATED_ARTIST_LIMIT, targetAlbums: itemCount, rotationSeed: getDailySeed(`${dayKey}:${refreshKey}`) }),
     enabled: isEnabled,
     staleTime: STALE_DEEZER_DISCOVERY,
     networkMode: 'online',
   })
 
-  const albums = useMemo(() => query.data ?? [], [query.data])
+  const albums = useMemo(() => (query.data ?? []).filter(album => !localAlbum(album)).slice(0, itemCount), [query.data, localAlbum, itemCount])
   const coversToPrefetch = useMemo(() => albums.map(a => a.cover), [albums])
   usePrefetchCovers(coversToPrefetch, 'grid')
 

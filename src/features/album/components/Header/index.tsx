@@ -1,8 +1,9 @@
-import { iconSize, spacing, statusColor } from '@/constants/design';
+import { iconSize, spacing, statusColor, typography } from '@/constants/design';
 import React, { useCallback, useMemo } from 'react';
 import {
   StyleSheet,
 } from 'react-native';
+import { Text } from '@/components/Text';
 import { Ellipsis, Link, Play, Shuffle } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +51,8 @@ function isCountLikeAlbumText(value?: string | null): boolean {
 }
 
 const AlbumHeader: React.FC<Props> = ({ model, showNavigation = true }) => {
+  const { t } = useTranslation();
+  const { colors } = useTheme();
   const { album, isLocal, songs } = model;
   const displayTitle = album?.title ?? '';
   // A missing cover is filled where it is drawn, by the same rule as every tile.
@@ -60,7 +63,12 @@ const AlbumHeader: React.FC<Props> = ({ model, showNavigation = true }) => {
       title={displayTitle}
       cover={displayCover}
       rightAction={album ? <AlbumOptionsButton album={album} isLocal={isLocal} /> : undefined}
-      meta={isLocal ? <LocalMetaRow album={album} songs={songs} /> : <ExternalMetaRow album={album} songs={songs} />}
+      meta={<>
+        <Text style={{ ...typography.caption, color: colors.subtext, marginBottom: spacing.xs }}>
+          {t(isLocal ? 'externalAlbum.menu.inLibrary' : 'externalAlbum.menu.title')}
+        </Text>
+        {isLocal ? <LocalMetaRow album={album} songs={songs} /> : <ExternalMetaRow album={album} songs={songs} />}
+      </>}
       status={!isLocal ? <ExternalServerStatusRow model={model} /> : undefined}
       actions={isLocal ? <LocalActionRow model={model} /> : <ExternalActionRow model={model} />}
       showNavigation={showNavigation}
@@ -121,9 +129,12 @@ function LocalMetaRow({ album, songs }: { album: Album | null; songs: Song[] }) 
   );
 
   const metadataItems = useMemo(() => {
-    const items: { label: string; type: 'artist' | 'genre' | 'info' }[] = [];
+    const items: { label: string; type: 'artist' | 'genre' | 'info'; artistId?: string }[] = [];
     if (!album) return items;
-    if (album.artist.name) items.push({ label: album.artist.name, type: 'artist' });
+    for (const artist of album.albumArtists ?? [album.artist]) {
+      const label = artist.name && artist.name !== 'Unknown Artist' ? artist.name : t('common.unknownArtist');
+      items.push({ label, type: 'artist', artistId: artist.nativeId });
+    }
     const genre = album.genres?.[0]?.trim();
     if (genre) items.push({ label: genre, type: 'genre' });
     const year = Number(album.year);
@@ -146,8 +157,8 @@ function LocalMetaRow({ album, songs }: { album: Album | null; songs: Song[] }) 
       {metadataItems.map((item, index) => (
         <React.Fragment key={`${item.label}-${index}`}>
           {index > 0 && <DetailMetaDot />}
-          {item.type === 'artist' ? (
-            <Touchable onPress={() => navigation.push('artistView', { id: album.artist.nativeId })}>
+          {item.type === 'artist' && item.artistId ? (
+            <Touchable onPress={() => navigation.push('artistView', { id: item.artistId })}>
               <DetailMetaText>{item.label}</DetailMetaText>
             </Touchable>
           ) : item.type === 'genre' ? (
@@ -233,7 +244,9 @@ function ExternalServerStatusRow({ model }: { model: AlbumScreenModel }) {
   return (
     <StatusBanner
       icon={<SpinningLoaderCircle size={icons.badge} color={statusColor.downloading} />}
-      text={t('externalAlbum.serverStatus.downloadingToServer', { progress: albumStatus.progress })}
+      text={albumStatus.kind === 'downloading'
+        ? t('externalAlbum.serverStatus.downloadingToServer', { progress: albumStatus.progress })
+        : t(`wants.status.${albumStatus.kind}`)}
       color={statusColor.downloading}
       style={styles.serverStatusRow}
     />

@@ -23,6 +23,8 @@ export type WantStatus =
   | { kind: 'saved' }
   /** A Get was sent and is accepted but not yet moving. */
   | { kind: 'queued' }
+  /** Transfer finished; only the synced catalog can confirm availability. */
+  | { kind: 'processing' }
   /** In flight, with whatever progress the downloader reports. */
   | { kind: 'downloading'; progress: number }
   /** Asked for long enough ago that a queue which never showed it is not
@@ -103,9 +105,8 @@ export function wantStatus(want: Want, input: StatusInput): WantStatus {
 
   if (item) {
     // A finished-but-not-yet-departed item is not progress any more: it has
-    // done its work and is waiting to leave the queue, which is the signal
-    // arrival watches for.
-    if (!item.active) return { kind: 'queued' };
+    // done its work, but the library still has to import and sync it.
+    if (!item.active) return { kind: item.percentComplete >= 100 ? 'processing' : 'queued' };
     const progress = Math.max(0, Math.min(100, Math.round(item.percentComplete)));
     return progress > 0 ? { kind: 'downloading', progress } : { kind: 'queued' };
   }

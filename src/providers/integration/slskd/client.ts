@@ -31,6 +31,8 @@ export const DEFAULT_SLSKD_PREFERENCES: SlskdSearchPreferences = {
 };
 
 export interface SlskdConfig {
+  /** Injected by the app; lets acquisition respect its chosen metadata server. */
+  musicbrainz?: Pick<import('@/providers/integration/musicbrainz').MusicbrainzClient, 'getRelease' | 'getReleaseGroup'>;
   serverUrl: string;
   apiKey: string;
   /** Undefined means "use defaults" — kept optional so unrelated calls don't care. */

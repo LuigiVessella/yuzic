@@ -14,8 +14,7 @@ type Props = {
   onOptions: (result: SearchResult) => void;
 };
 
-/** A song result row — always local; there is no external song search
- *  today (see `SearchEntityType`). */
+/** Local songs play; external songs open their acquisition actions. */
 export default function SongResult({ result, onPress, onOptions }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();

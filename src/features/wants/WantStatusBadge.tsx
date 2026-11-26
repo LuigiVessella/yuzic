@@ -37,7 +37,7 @@ export default function WantStatusBadge({ status }: { status: WantStatus }) {
 
   return (
     <View testID={`want-status-${status.kind}`} style={styles.badge}>
-      {status.kind === 'queued' || status.kind === 'downloading' ? (
+      {status.kind === 'queued' || status.kind === 'downloading' || status.kind === 'processing' ? (
         <SpinningLoaderCircle size={icons.badge} color={color} />
       ) : status.kind === 'arrived' ? (
         <CheckCircle size={icons.badge} color={color} />

@@ -1,4 +1,4 @@
-import { getDeezerAlbum, getDeezerArtistAlbums } from './catalog';
+import { getDeezerAlbum, getDeezerArtistAlbums, resolveDeezerArtistByName, refreshDeezerDiscovery, searchDeezerTracks } from './catalog';
 import { integrationProvenance } from '@/domain/identity/Provenance';
 import { makeLocalId } from '@/domain/identity/LocalId';
 import type { Artist } from '@/domain/entities/Artist';
@@ -7,7 +7,36 @@ function jsonResponse(body: unknown): Promise<Response> {
   return Promise.resolve({ ok: true, status: 200, json: async () => body } as unknown as Response);
 }
 
+describe('Deezer track search', () => {
+  it('returns a track as an external song with its artist and album', async () => {
+    global.fetch = jest.fn(async () => jsonResponse({ data: [{
+      id: 42, title: 'Lontano', duration: 185, artist: { id: 7, name: 'Sfera Ebbasta' },
+      album: { id: 9, title: 'Single', artist: { id: 7, name: 'Sfera Ebbasta' } },
+    }] })) as unknown as typeof fetch;
+    const [song] = await searchDeezerTracks('Lontano - Sfera Ebbasta');
+    expect(song).toMatchObject({ nativeId: '42', title: 'Lontano',
+      artist: { name: 'Sfera Ebbasta' }, album: { nativeId: '9' },
+      externalIds: { deezerId: '42' }, contentKind: 'preview',
+    });
+  });
+});
+
 describe('getDeezerArtistAlbums', () => {
+  it('uses an offset for later pages and a deliberate refresh expires discovery entries', async () => {
+    global.fetch = jest.fn(async () => jsonResponse({ data: [{ id: 555, title: 'Page Two' }] })) as unknown as typeof fetch;
+    await getDeezerArtistAlbums('paged-artist', 25, null, 25);
+    expect(String((global.fetch as jest.Mock).mock.calls[0][0])).toContain('limit=25&index=25');
+    await getDeezerArtistAlbums('paged-artist', 25, null, 25);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    refreshDeezerDiscovery();
+    await getDeezerArtistAlbums('paged-artist', 25, null, 25);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not silently select between same-named artists', async () => {
+    global.fetch = jest.fn(async () => jsonResponse({ data: [{ id: 1, name: 'Ambiguous Artist' }, { id: 2, name: 'Ambiguous Artist' }] })) as unknown as typeof fetch;
+    expect(await resolveDeezerArtistByName('Ambiguous Artist')).toBeNull();
+  });
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -65,6 +94,16 @@ describe('getDeezerArtistAlbums', () => {
 });
 
 describe('getDeezerAlbum', () => {
+  it('loads tracks beyond the embedded first page', async () => {
+    global.fetch = jest.fn(async (url: string) => jsonResponse(url.includes('/tracks?')
+      ? { data: [{ id: 9002, title: 'Disc Two', disk_number: 2, track_position: 1 }] }
+      : { id: 9000, title: 'Box Set', artist: { id: 1, name: 'Artist' }, nb_tracks: 2,
+        tracks: { data: [{ id: 9001, title: 'Disc One', disk_number: 1, track_position: 1 }] } }
+    )) as unknown as typeof fetch;
+    const detail = await getDeezerAlbum('multi-disc-test');
+    expect(detail?.songs).toHaveLength(2);
+    expect(detail?.songs[1]).toMatchObject({ discNumber: 2, trackNumber: 1 });
+  });
   afterEach(() => {
     jest.restoreAllMocks();
   });

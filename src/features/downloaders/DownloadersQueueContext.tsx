@@ -4,12 +4,15 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 
 import { useApi } from '@/providers/registry/useApi';
+import { useSelector } from 'react-redux';
+import { selectActiveServerId } from '@/state/redux/selectors/serversSelectors';
 import { useAppActive } from '@/features/connectivity/useAppActive';
 import { useIsOffline } from '@/features/connectivity/useIsOffline';
 import { usePollWhile } from '@/state/query/usePollWhile';
@@ -17,17 +20,22 @@ import { useSync } from '@/features/library/useSync';
 import { useDownloaderStates, type DownloaderState } from './registry';
 import { finishedSince, type DownloaderQueueItem } from './queueItem';
 import type { DownloaderId } from '@/state/redux/slices/downloadersSlice';
+import { useScanAfterDownloads } from './useScanAfterDownloads';
 
 // A completed download on a downloader (Lidarr/slskd) writes to the media
 // library the same way a manual copy would — the server has no way to know
 // until it scans. This poll interval balances "the new album shows up
 // promptly" against "we're not hammering an idle downloader all day".
 const POLL_INTERVAL_MS = 30_000;
+const MAX_POLL_INTERVAL_MS = 240_000;
 
-// Some scans take a while on large libraries (multi-thousand album Navidrome
-// installs). Refetch a second time later so a slow scan doesn't leave the app
-// with a stale library.
-const SYNC_DELAYS_MS = [15_000, 60_000];
+type QueueRead = {
+  state: DownloaderState;
+  previous: DownloaderQueueItem[];
+  inFlight: boolean;
+  interval: number;
+  nextPollAt: number;
+};
 
 type DownloaderQueueSnapshot = {
   id: DownloaderId;
@@ -77,20 +85,14 @@ const DownloadersQueueContext = createContext<ContextValue>({
  *      know what is transferring reads one snapshot instead of opening its own
  *      connection to the same server.
  *
- * The second job is why this is the only poller left. There were three: this
- * one at 30s for counts, the settings screen's at 10s for its cards, and a
- * React Query pair at 12s per album row for progress — three reads of the same
- * endpoints, three intervals, and three separate ideas of what "finished"
- * meant. A downloader saw up to three times the traffic it needed, and which
- * of the three noticed a completion first decided whether the library got
- * rescanned.
- *
  * Mounted once at the top of the home layout.
  */
 export function DownloadersQueueProvider({ children }: { children: ReactNode }) {
   const states = useDownloaderStates();
   const api = useApi();
+  const serverId = useSelector(selectActiveServerId);
   const { sync } = useSync();
+  const scanAndSync = useScanAfterDownloads(serverId, api.auth.startScan, sync);
   const isAppActive = useAppActive();
   const isOffline = useIsOffline();
 
@@ -98,14 +100,40 @@ export function DownloadersQueueProvider({ children }: { children: ReactNode }) 
 
   const [recentlyFinished, setRecentlyFinished] = useState<DownloaderQueueItem[]>([]);
 
-  // One previous-queue ref per downloader id — a Map, so add/remove
-  // downloaders don't shift indices under an in-flight poll.
-  const previousQueuesRef = useRef<Map<DownloaderId, DownloaderQueueItem[]>>(new Map());
-  const inFlightRef = useRef<Set<DownloaderId>>(new Set());
+  const reads = useRef(new Map<DownloaderId, QueueRead>());
 
   const connectedStates = useMemo(() => states.filter((s) => s.isConnected), [states]);
   const shouldPoll = connectedStates.length > 0 && isAppActive && !isOffline;
   const tick = usePollWhile(shouldPoll, POLL_INTERVAL_MS);
+
+  useLayoutEffect(() => () => {
+    reads.current.clear();
+  }, [serverId]);
+
+  useLayoutEffect(() => {
+    const next = new Map<DownloaderId, QueueRead>();
+    const retained = new Set<DownloaderId>();
+    for (const state of connectedStates) {
+      const id = state.def.id;
+      const read = reads.current.get(id);
+      if (read && read.state.config.serverUrl === state.config.serverUrl
+        && read.state.config.apiKey === state.config.apiKey
+        && read.state.config.preferences === state.config.preferences) {
+        read.state = state;
+        retained.add(id);
+        next.set(id, read);
+      } else {
+        next.set(id, { state, previous: [], inFlight: false, interval: POLL_INTERVAL_MS, nextPollAt: 0 });
+      }
+    }
+    reads.current = next;
+    setQueues(previous => {
+      const kept = previous.filter(queue => retained.has(queue.id));
+      return kept.length === previous.length ? previous : kept;
+    });
+  }, [connectedStates, serverId]);
+
+  useLayoutEffect(() => { setRecentlyFinished([]); }, [serverId]);
 
   /**
    * Replace one downloader's entry, keeping the rest.
@@ -139,14 +167,17 @@ export function DownloadersQueueProvider({ children }: { children: ReactNode }) 
     });
   }, []);
 
-  const pollOne = useCallback(async (state: DownloaderState) => {
-    if (inFlightRef.current.has(state.def.id)) return;
-    inFlightRef.current.add(state.def.id);
-    const previous = previousQueuesRef.current.get(state.def.id) ?? [];
+  const pollOne = useCallback(async (read: QueueRead, force = false) => {
+    if (read.inFlight || (!force && Date.now() < read.nextPollAt)) return;
+    read.inFlight = true;
+    const { state } = read;
     try {
       const items = await state.def.fetchQueue(state.config);
-      const finished = finishedSince(previous, items);
-      previousQueuesRef.current.set(state.def.id, items);
+      if (reads.current.get(state.def.id) !== read) return;
+      const finished = finishedSince(read.previous, items);
+      read.previous = items;
+      read.interval = POLL_INTERVAL_MS;
+      read.nextPollAt = 0;
       updateQueue(state, {
         items,
         count: items.filter((item) => item.active).length,
@@ -155,64 +186,32 @@ export function DownloadersQueueProvider({ children }: { children: ReactNode }) 
       });
       if (finished.length > 0) {
         setRecentlyFinished(finished);
-        // Ask the server to look, then read the library again — twice, because
-        // a scan of a multi-thousand album library is not instant and a single
-        // early refetch would find the same catalogue it already had.
-        api.auth.startScan().catch(() => {});
-        for (const delay of SYNC_DELAYS_MS) {
-          setTimeout(() => { void sync(true).catch(() => {}); }, delay);
-        }
+        scanAndSync();
       }
     } catch {
       // Transient reachability failure. The previous items stay: showing an
       // empty queue because one read failed would look like every transfer
       // had finished.
+      if (reads.current.get(state.def.id) !== read) return;
+      read.interval = Math.min(read.interval * 2, MAX_POLL_INTERVAL_MS);
+      read.nextPollAt = Date.now() + read.interval;
       updateQueue(state, { isLoading: false, hasError: true });
     } finally {
-      inFlightRef.current.delete(state.def.id);
+      read.inFlight = false;
     }
-  }, [api.auth, sync, updateQueue]);
+  }, [scanAndSync, updateQueue]);
 
   useEffect(() => {
     if (!shouldPoll) return;
-    let cancelled = false;
-    for (const state of connectedStates) {
-      if (cancelled) break;
-      void pollOne(state);
-    }
-    return () => { cancelled = true; };
-  }, [shouldPoll, tick, connectedStates, pollOne]);
+    for (const read of reads.current.values()) void pollOne(read);
+  }, [shouldPoll, tick, connectedStates, serverId, pollOne]);
 
-  // Clean up snapshots for downloaders that got disconnected.
-  useEffect(() => {
-    const connectedIds = new Set(connectedStates.map((s) => s.def.id));
-    // Return `prev` untouched when nothing was dropped: `filter` always
-    // allocates, and a new array here re-runs this effect via the state
-    // update it causes.
-    setQueues((prev) => {
-      const next = prev.filter((q) => connectedIds.has(q.id));
-      return next.length === prev.length ? prev : next;
-    });
-    for (const id of Array.from(previousQueuesRef.current.keys())) {
-      if (!connectedIds.has(id)) previousQueuesRef.current.delete(id);
-    }
-  }, [connectedStates]);
-
-  /**
-   * Stable for the life of the provider, deliberately.
-   *
-   * `pollOne` and `connectedStates` are rebuilt whenever what they close over
-   * changes, and a `refresh` that changed with them would change this
-   * context's `value` — re-rendering every consumer of the queue on every
-   * provider render. The consumers are whole screens (Wants, Downloads), and
-   * one of them was hosting a bottom sheet at the time. Reading the current
-   * pair off a ref keeps the identity fixed while still calling the latest.
-   */
-  const pollRef = useRef({ connectedStates, pollOne });
-  pollRef.current = { connectedStates, pollOne };
+  // Keep refresh stable for consumers while using the latest poll policy.
+  const pollRef = useRef({ shouldPoll, pollOne });
+  pollRef.current = { shouldPoll, pollOne };
   const refresh = useCallback(() => {
-    const { connectedStates: states, pollOne: poll } = pollRef.current;
-    for (const state of states) void poll(state);
+    const { shouldPoll: enabled, pollOne: poll } = pollRef.current;
+    if (enabled) for (const read of reads.current.values()) void poll(read, true);
   }, []);
 
   /**

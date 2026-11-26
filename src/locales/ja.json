@@ -133,7 +133,8 @@
         "english": "英語",
         "japanese": "日本語",
         "french": "フランス語",
-        "chinese": "中国語"
+        "chinese": "中国語",
+        "italian": "イタリア語"
       },
       "showQualityBadge": "音質バッジを表示",
       "showQualityBadgeSubtext": "プレーヤーに形式とビットレートを表示。",
@@ -719,9 +720,20 @@
       "longestGap": "未再生の日数",
       "topArtists": "よく聴くアーティスト",
       "topTracks": "よく聴く曲"
+    },
+    "diagnostics": {
+      "title": "診断情報",
+      "explainer": "Yuzic は再生できなかった曲、クラッシュ、完了しなかったダウンロードなど、問題が起きた記録を保存します。原因を特定できるよう、バグ報告と一緒に共有してください。パスワードとサーバーの認証情報は自動的に削除されますが、曲名とサーバーのアドレスは含まれる場合があります。",
+      "share": "診断情報を共有",
+      "sharing": "準備中…",
+      "clear": "診断情報を消去",
+      "cleared": "診断情報を消去しました",
+      "empty": "まだ記録はありません。問題が起きるとここに表示されます。",
+      "recordCount_other": "{{count}} 件"
     }
   },
   "common": {
+    "unknownArtist": "不明なアーティスト",
     "cancel": "キャンセル",
     "delete": "削除",
     "next": "次へ",
@@ -775,7 +787,9 @@
     "home": {
       "subtitle": "あなたの音楽ライブラリ。自分のサーバーからどこでも再生。",
       "getStarted": "はじめる",
-      "terms": "続行すると、利用規約とプライバシーポリシーを読んで同意したものとみなされます"
+      "terms": "続行すると、{{terms}}および{{privacy}}を読み、同意したものとみなされます",
+      "termsLink": "利用規約",
+      "privacyLink": "プライバシーポリシー"
     },
     "servers": {
       "title": "サーバー",
@@ -918,6 +932,7 @@
       "browse": "ブラウズ"
     },
     "collection": {
+      "showCollaborations": "コラボレーションを表示",
       "empty": "まだ何もありません。",
       "downloadedEmpty": "まだダウンロードしたものはありません。アルバムやプレイリストのオプションからダウンロードすると、オフラインで再生できます。",
       "playFailed": "再生を開始できませんでした。"
@@ -1007,13 +1022,16 @@
     "title": "検索",
     "placeholder": "音楽、アーティスト、プレイリストを検索...",
     "noResults": "結果が見つかりません",
-    "searchError": "サーバーに接続できませんでした — 結果が不完全な場合があります",
-    "searchLocalOnly": "サーバーに接続できないため、ライブラリのみを表示しています",
+    "searchError": "一部のソースに接続できません — 結果が不完全な場合があります",
+    "sourceUnavailable": "ソースに接続できません",
+    "retrySource": "{{source}}を再試行",
+    "searchLocalOnly": "利用可能な結果を表示しています — 一部のソースはオフラインです",
     "recentSearches": "最近の検索",
     "clearRecent": "クリア",
     "removeRecentSearch": "「{{query}}」を最近の検索から削除",
     "recentlyOpened": "最近開いた項目",
     "scope": {
+      "all": "すべてのソース",
       "library": "ライブラリ",
       "other": "その他のソース"
     },
@@ -1107,6 +1125,10 @@
     "offlineBanner": "オフライン — 発見は一時停止中ですが、ライブラリはご利用いただけます"
   },
   "playing": {
+    "connection": {
+      "offline": "ネットワークに接続されていません。保存済みの音楽は再生できます。",
+      "serverUnreachable": "音楽サーバーに接続できません。保存済みの音楽は再生できます。"
+    },
     "volume": "音量",
     "volumeOnServer": "サーバーの音量",
     "output": {
@@ -1132,7 +1154,8 @@
       "playingFromQueue": "キューから再生"
     },
     "lyrics": {
-      "title": "歌詞"
+      "title": "歌詞",
+      "resumeFollowing": "現在の歌詞に戻る"
     },
     "aboutArtist": {
       "header": "アーティスト"
@@ -1270,7 +1293,7 @@
       "title": "外部アルバム",
       "downloadToServer": "サーバーにダウンロード",
       "downloadSong": "曲をダウンロード",
-      "get": "取得",
+      "get": "アルバムを取得",
       "getSong": "曲を取得",
       "want": "ウォンツに追加",
       "wanted": "ウォンツ済み",
@@ -1287,7 +1310,7 @@
       "saveAsDefaultAlbums": "アルバムの既定として保存",
       "saveAsDefaultTracks": "曲の既定として保存",
       "qualityProfile": "品質プロファイル",
-      "confirmGet": "取得"
+      "perTrack": "曲ごとにリクエストを送信します。"
     },
     "serverStatus": {
       "onServer": "ライブラリ内",
@@ -1330,6 +1353,10 @@
           "BAD_RESPONSE": "そのアドレスは SoulSync の応答を返しませんでした。URL を確認してください。",
           "HTTP_ERROR": "SoulSync に接続できません。サーバーを確認して再試行してください。",
           "NOT_AVAILABLE": "SoulSync に Soulseek 接続が設定されていません。",
+          "INSUFFICIENT_SCOPE": "この SoulSync API キーにはダウンロードの閲覧権限しかありません。書き込み権限のあるキーを使用してください。",
+          "not_found": "SoulSync は Soulseek で一致する曲を見つけられませんでした。",
+          "failed": "SoulSync は曲の検索を完了できませんでした。",
+          "unconfirmed": "SoulSync はリクエストを受け付けましたが、結果を確認できません。再試行する前に SoulSync を確認してください。",
           "no_tracks": "このアルバムのリクエストする曲を取得できませんでした。",
           "some_tracks_failed": "このアルバムの一部の曲を SoulSync にリクエストできませんでした。"
         }
@@ -1368,6 +1395,7 @@
     "openArrival": "開く",
     "artistLabel": "アーティスト",
     "status": {
+      "processing": "ライブラリへの取り込み待ち",
       "queued": "待機中",
       "downloading": "ダウンロード中 · {{progress}}%",
       "failed": "届きませんでした",
@@ -1661,6 +1689,7 @@
       "checkConnection": "接続を確認"
     },
     "player": {
+      "favorite": "お気に入り",
       "close": "プレーヤーを閉じる",
       "songOptions": "曲のオプション",
       "addToPlaylist": "プレイリストに追加",

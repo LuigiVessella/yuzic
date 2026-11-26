@@ -13,28 +13,37 @@ export function runImageCacheMigration() {
 
 const IMAGE_CACHE_POLICY = 'dataCache' as const;
 const MAX_FAILED_URLS = 300;
+const FAILED_URL_RETRY_MS = 30_000;
 
-const failedImageUrls = new Set<string>();
+const failedImageUrls = new Map<string, number>();
+const failureListeners = new Set<() => void>();
+
+export function subscribeImageFailures(listener: () => void): () => void {
+  failureListeners.add(listener);
+  return () => { failureListeners.delete(listener); };
+}
 
 function rememberFailedUrl(uri: string) {
   if (!uri) return;
   if (failedImageUrls.size >= MAX_FAILED_URLS) {
-    const [oldest] = failedImageUrls;
+    const [oldest] = failedImageUrls.keys();
     if (oldest) failedImageUrls.delete(oldest);
   }
-  failedImageUrls.add(uri);
+  failedImageUrls.set(uri, Date.now());
 }
 
 export function markImageUrlFailed(uri: string) {
   rememberFailedUrl(uri);
+  failureListeners.forEach(listener => listener());
 }
 
 export function markImageUrlSucceeded(uri: string) {
-  failedImageUrls.delete(uri);
+  if (failedImageUrls.delete(uri)) failureListeners.forEach(listener => listener());
 }
 
 export function hasImageUrlFailed(uri: string | null | undefined): boolean {
-  return !!uri && failedImageUrls.has(uri);
+  const failedAt = uri ? failedImageUrls.get(uri) : undefined;
+  return failedAt !== undefined && Date.now() - failedAt < FAILED_URL_RETRY_MS;
 }
 
 export function prefetchCovers(

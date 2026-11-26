@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 
 import { notify } from '@/components/toast';
+import { useIsOffline } from '@/features/connectivity/useIsOffline';
+import { getServerUnreachable } from '@/features/connectivity/serverReachability';
+import { selectActiveServerId } from '@/state/redux/selectors/serversSelectors';
 import type { Song } from '@/domain/entities/Song';
 import { getBackend } from '@/features/player/activeBackend';
 import { usePlaybackSink } from '@/features/player/PlaybackSinkContext';
@@ -17,11 +20,12 @@ import { captureOutgoingScrobble, deferOffTrackChange } from './outgoingScrobble
 import type { PlaybackSession } from './playbackSession';
 import { assertPlayable, sameQueue, type PlayableResource } from './playableResource';
 import { backendRepeatMode } from './playingPolicies';
-import { resourcesFromPlayerQueue } from './playingQueue';
+import { retainQueueSegments, resourcesFromPlayerQueue } from './playingQueue';
 import { speedFor } from './speedProfile';
 import { useLatestRef } from './useLatestRef';
 import type { PlaybackResources } from './usePlaybackResources';
 import type { PlaybackServices } from './usePlaybackServices';
+import { log } from '@/features/diagnostics/log';
 
 export type LoadQueue = (
   resources: PlayableResource[],
@@ -45,6 +49,9 @@ export function usePlaybackEngine(
 ) {
   const { t } = useTranslation();
   const { sink, sinkLoadQueue } = usePlaybackSink();
+  const offline = useLatestRef(useIsOffline());
+  const activeServer = useLatestRef(useSelector(selectActiveServerId));
+  const [connectionInterrupted, setConnectionInterrupted] = useState(false);
   const sinkRef = useLatestRef(sink);
   const autoplayEnabled = useLatestRef(useSelector(selectAutoplayEnabled));
   const playbackSpeeds = useLatestRef(useSelector(selectPlaybackSpeeds));
@@ -118,7 +125,7 @@ export function usePlaybackEngine(
     bumpQueue: session.bumpQueue,
     loadQueue: (queue, startIndex, play, seekToPosition) =>
       loadQueueRef.current(queue, startIndex, play, seekToPosition),
-    logWarning: (message, error) => console.warn(message, error),
+    logWarning: (message, fields) => log.playback.warn(message, fields),
   }), [loadQueueRef, listenerRef, queueFillProviders, resolve, session, toMediaItems]);
   const autoplayRef = useLatestRef(autoplay);
 
@@ -161,15 +168,29 @@ export function usePlaybackEngine(
     currentIndex: session.currentIndex,
     refreshResource: song => resolve.current(song),
     toMediaItems,
-    replaceQueue: session.setQueue,
+    replaceQueue: (queue, keptIndices, currentIndex) => {
+      session.setSegments(retainQueueSegments(session.segments(), keptIndices));
+      session.setQueue(queue);
+      session.setActive(currentIndex, queue[currentIndex]);
+      session.bumpQueue();
+    },
     setCurrentResource: session.setCurrentResource,
     removeFailedCurrentTrack,
     notifyError: () => notify.error(t('common.playbackError')),
     notifyStopped: () => notify.error(t('common.playbackStopped')),
-    logFailure: info => console.warn('Playback failed', info),
+    connectionProblem: ({ song }) => {
+      if (offline.current) return 'offline';
+      return song.provenance?.origin === 'server'
+        && song.provenance.serverId === activeServer.current
+        && getServerUnreachable() ? 'serverUnreachable' : null;
+    },
+    setConnectionInterrupted,
+    logFailure: info => log.playback.error('playback failed', info),
     now: Date.now,
-  }), [removeFailedCurrentTrack, resolve, session, t, toMediaItems]);
+  }), [activeServer, offline, removeFailedCurrentTrack, resolve, session, t, toMediaItems]);
   const eventsRef = useLatestRef(events);
+  const retryConnection = useCallback(() => eventsRef.current.retryConnection(), [eventsRef]);
+  const clearConnectionRetry = useCallback(() => eventsRef.current.clearConnectionRetry(), [eventsRef]);
 
   useEffect(() => getBackend().addListener(event => {
     switch (event.type) {
@@ -246,5 +267,5 @@ export function usePlaybackEngine(
     coordinatorRef.current.onActiveTrackChanged(activeMediaItem);
   }, [activeMediaItem, coordinatorRef]);
 
-  return { loadQueueRef, scrobbleOutgoing, autoplay };
+  return { loadQueueRef, scrobbleOutgoing, autoplay, connectionInterrupted, retryConnection, clearConnectionRetry };
 }

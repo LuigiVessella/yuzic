@@ -10,8 +10,8 @@ export type SearchScope = 'client' | 'server';
  * Two two-member unions are cheaper to restate than to untangle that, and the
  * search side keeps the canonical copies (`searchLegs`, `searchPolicy`).
  */
-type SearchResultScope = 'library' | 'other';
-type SearchEntityType = 'album' | 'artist';
+type SearchResultScope = 'all' | 'library' | 'other';
+type SearchEntityType = 'song' | 'album' | 'artist';
 
 /**
  * Where a search runs. Which outside catalogues Search may query is each
@@ -40,12 +40,24 @@ interface SearchSettingsState {
 
 const initialState: SearchSettingsState = {
   searchScope: 'server',
-  // 'library' is the default and the only scope that ever runs without an
-  // explicit switch — "Other sources" is the deliberate external action.
-  resultScope: 'library',
+  // External requests still require each source's Search use to be enabled.
+  resultScope: 'all',
   sourceIds: null,
-  entityTypes: ['album', 'artist'],
+  entityTypes: ['song', 'album', 'artist'],
 };
+
+/** Upgrade the old exclusive scope without changing source permissions. */
+export function migrateSearchSettings(state: any): any {
+  if (!state) return state;
+  const oldVersion = state._persist?.version ?? 1;
+  return {
+    ...state,
+    resultScope: oldVersion < 2 ? 'all' : (state.resultScope ?? 'all'),
+    entityTypes: oldVersion < 2
+      ? ['song', ...((state.entityTypes ?? ['album', 'artist']) as string[]).filter(type => type !== 'song')]
+      : (state.entityTypes ?? ['song', 'album', 'artist']),
+  };
+}
 
 const searchSlice = createSlice({
   name: 'settingsSearch',

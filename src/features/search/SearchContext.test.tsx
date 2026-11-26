@@ -10,8 +10,9 @@ jest.mock('@/features/artist/useArtists', () => ({ useArtists: () => ({ artists:
 jest.mock('@/features/playlist/usePlaylists', () => ({ usePlaylists: () => ({ playlists: [] }) }));
 jest.mock('@/features/song/useTracks', () => ({ useTracks: () => ({ tracks: [] }) }));
 
+const mockServerSearch = jest.fn().mockResolvedValue({ albums: [], artists: [], songs: [] });
 jest.mock('@/providers/registry/useApi', () => ({
-  useApi: () => ({ search: { search: jest.fn().mockResolvedValue({ albums: [], artists: [], songs: [] }) } }),
+  useApi: () => ({ search: { search: (...args: unknown[]) => mockServerSearch(...args) } }),
 }));
 
 jest.mock('@/features/offline/DownloadContext', () => ({
@@ -62,18 +63,22 @@ const dzAlbum = {
 
 const mockSearchDeezerArtists = jest.fn().mockResolvedValue([]);
 const mockSearchDeezerAlbums = jest.fn().mockResolvedValue([dzAlbum]);
+const mockSearchDeezerTracks = jest.fn().mockResolvedValue([]);
 jest.mock('@/providers/integration/deezer', () => ({
   searchDeezerArtists: (...args: unknown[]) => mockSearchDeezerArtists(...args),
   searchDeezerAlbums: (...args: unknown[]) => mockSearchDeezerAlbums(...args),
+  searchDeezerTracks: (...args: unknown[]) => mockSearchDeezerTracks(...args),
 }));
 
 const mockSearchArtist = jest.fn().mockResolvedValue([]);
+const mockSearchRecordingByTitle = jest.fn().mockResolvedValue([]);
 const mockSearchReleaseGroupByTitle = jest.fn().mockResolvedValue([
   { id: 'mb-1', title: 'Rumours', 'first-release-date': '1977-02-04' },
 ]);
 jest.mock('@/providers/integration/musicbrainz', () => ({
   searchArtist: (...args: unknown[]) => mockSearchArtist(...args),
   searchReleaseGroupByTitle: (...args: unknown[]) => mockSearchReleaseGroupByTitle(...args),
+  searchRecordingByTitle: (...args: unknown[]) => mockSearchRecordingByTitle(...args),
 }));
 
 let mockSearchScope: 'client' | 'server' = 'server';
@@ -91,13 +96,33 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('SearchContext handleSearchWithFilters', () => {
+  it('cancels superseded external searches without letting their answer replace the latest results', async () => {
+    let finish!: (albums: unknown[]) => void;
+    mockSearchDeezerAlbums.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    let oldSearch!: Promise<void>;
+    await act(async () => {
+      oldSearch = result.current.handleSearchWithFilters('old', { resultScope: 'other', sourceIds: ['deezer'] });
+    });
+    const signal = mockSearchDeezerAlbums.mock.calls[0][2] as AbortSignal;
+    await act(async () => {
+      await result.current.handleSearchWithFilters('latest', { resultScope: 'other', sourceIds: ['deezer'] });
+    });
+    expect(signal.aborted).toBe(true);
+    await act(async () => { finish([]); await oldSearch; });
+    expect(result.current.searchResults).toHaveLength(1);
+    expect(result.current.hasError).toBe(false);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     mockIsOffline = false;
     mockServerUnreachable = false;
     mockSearchDeezerArtists.mockResolvedValue([]);
     mockSearchDeezerAlbums.mockResolvedValue([dzAlbum]);
+    mockSearchDeezerTracks.mockResolvedValue([]);
     mockSearchArtist.mockResolvedValue([]);
+    mockSearchRecordingByTitle.mockResolvedValue([]);
+    mockServerSearch.mockResolvedValue({ albums: [], artists: [], songs: [] });
     mockSearchReleaseGroupByTitle.mockResolvedValue([
       { id: 'mb-1', title: 'Rumours', 'first-release-date': '1977-02-04' },
     ]);
@@ -129,8 +154,63 @@ describe('SearchContext handleSearchWithFilters', () => {
       });
     });
 
-    expect(mockSearchDeezerAlbums).toHaveBeenCalledWith('rumours', 6);
+    expect(mockSearchDeezerAlbums).toHaveBeenCalledWith('rumours', 6, expect.any(AbortSignal));
     expect(mockSearchReleaseGroupByTitle).not.toHaveBeenCalled();
+  });
+
+  it('combines a library song with external tracks without hiding either source', async () => {
+    mockServerSearch.mockResolvedValue({ albums: [], artists: [], songs: [{
+      nativeId: 'local-song', title: 'Lontano', artist: { name: 'Sfera Ebbasta' }, cover: { kind: 'none' },
+    }] });
+    mockSearchDeezerTracks.mockResolvedValue([{ nativeId: 'dz-song', title: 'Lontano',
+      artist: { name: 'Sfera Ebbasta' }, cover: { kind: 'none' }, externalIds: { deezerId: 'dz-song' },
+    }]);
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    await act(async () => {
+      await result.current.handleSearchWithFilters('Lontano', { resultScope: 'all', sourceIds: ['deezer'] });
+    });
+    expect(result.current.searchResults).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'local-song', type: 'song', source: 'local' }),
+      expect.objectContaining({ id: 'dz-song', type: 'song', source: 'external', externalSource: 'deezer' }),
+    ]));
+  });
+
+  it('shows Deezer while MusicBrainz is still answering', async () => {
+    let finishMusicBrainz!: () => void;
+    mockSearchRecordingByTitle.mockImplementationOnce(() => new Promise(resolve => {
+      finishMusicBrainz = () => resolve([]);
+    }));
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.handleSearchWithFilters('Lontano', {
+        resultScope: 'all', sourceIds: ['deezer', 'musicbrainz'],
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.searchResults.some(r => r.externalSource === 'deezer')).toBe(true));
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.sourceStatuses).toEqual({ deezer: 'ready', musicbrainz: 'pending' });
+    await act(async () => { finishMusicBrainz(); await pending; });
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('retries only the failed source and keeps results from healthy sources', async () => {
+    mockSearchReleaseGroupByTitle.mockRejectedValueOnce(new Error('timeout'));
+    const { result } = await renderHook(() => useSearch(), { wrapper });
+    await act(async () => {
+      await result.current.handleSearchWithFilters('Rumours', {
+        resultScope: 'other', sourceIds: ['deezer', 'musicbrainz'],
+      });
+    });
+
+    expect(result.current.sourceStatuses).toEqual({ deezer: 'ready', musicbrainz: 'failed' });
+    expect(result.current.searchResults.some(item => item.externalSource === 'deezer')).toBe(true);
+    const deezerRequests = mockSearchDeezerAlbums.mock.calls.length;
+    await act(async () => { result.current.retrySource('musicbrainz'); });
+    await waitFor(() => expect(result.current.sourceStatuses.musicbrainz).toBe('ready'));
+    expect(result.current.searchResults.some(item => item.externalSource === 'musicbrainz')).toBe(true);
+    expect(mockSearchDeezerAlbums).toHaveBeenCalledTimes(deezerRequests);
   });
 
   it('never mixes library and external results in one response', async () => {

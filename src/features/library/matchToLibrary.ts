@@ -10,7 +10,7 @@
  * "the fields a caller has in hand" to `findMatch`'s `Matchable`/`NameKey`
  * shape — no matching rule lives here.
  */
-import { findMatch } from '@/domain/identity/matching';
+import { findMatch, ID_FIELDS, normalizeName } from '@/domain/identity/matching';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import type { Album } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
@@ -52,5 +52,17 @@ export function matchArtistToLibrary(subject: ArtistMatchSubject, artists: reado
     artists,
     (artist) => ({ primary: artist.name })
   );
-  return match?.candidate ?? null;
+  if (!match || match.confidence === 'exact') return match?.candidate ?? null;
+
+  const name = normalizeName(subject.name);
+  if (!name) return null;
+  const homonyms = new Set(artists.filter(artist => normalizeName(artist.name) === name).map(artist => artist.localId));
+  const conflictingIds = ID_FIELDS.some(([, field]) => {
+    const fromSource = subject.externalIds[field];
+    const librarySource = match.candidate.externalIds[field];
+    return !!(fromSource && librarySource && fromSource !== librarySource);
+  });
+  return homonyms.size === 1 && !conflictingIds
+    ? match.candidate
+    : null;
 }

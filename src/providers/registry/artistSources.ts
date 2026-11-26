@@ -6,9 +6,10 @@ import { useArtistTopTracks } from '@/features/artist/useArtistTopTracks';
 import { useLBSimilarArtists } from '@/features/artist/useLBSimilarArtists';
 import { useSimilarArtists } from '@/features/artist/useSimilarArtists';
 import { useSourceUse } from '@/features/settings/sources/useSourceUse';
+import { type SourceId } from './sources';
 
 /** The letter-in-a-disc that says which service a section came from. */
-export type SourceBadge = { letter: string; color: string };
+type SourceBadge = { letter: string; color: string };
 
 /**
  * The outside services an artist page draws from, declared here so the page
@@ -27,12 +28,15 @@ export function useArtistCatalogueEnabled(): boolean {
   return useSourceUse('deezer.popularTracks');
 }
 
-type ExternalSimilarRow = { id: string; badge: SourceBadge; artists: Artist[] };
+export function artistCatalogueIdOf(artist: Artist): string | undefined {
+  return artist.externalIds.deezerId;
+}
+
+type ExternalSimilarRow = { id: SourceId; artists: Artist[] };
 
 /**
- * Similar artists from outside services for a library artist, one row per
- * service in the order they are shown, leaving out any with nothing to show.
- * Each service's own setting gates its request; this only orders the answers.
+ * Similar artists from outside services for a library artist, ordered by
+ * source before the artist page combines them into one shelf.
  */
 export function useExternalSimilarArtistRows(artist: Artist): ExternalSimilarRow[] {
   const catalogueEnabled = useSourceUse('deezer.similarArtists');
@@ -43,6 +47,7 @@ export function useExternalSimilarArtistRows(artist: Artist): ExternalSimilarRow
   const { similarArtists: catalogueSimilar } = useArtistTopTracks({
     name: artist.name,
     mbid,
+    catalogueId: artistCatalogueIdOf(artist),
     enabled: catalogueEnabled,
   });
   // Uses the bundled Last.fm key; without one the hook stays disabled.
@@ -58,9 +63,9 @@ export function useExternalSimilarArtistRows(artist: Artist): ExternalSimilarRow
     8
   );
 
-  return useMemo(() => [
-    { id: 'deezer', badge: ARTIST_CATALOGUE.badge, artists: catalogueEnabled ? catalogueSimilar : [] },
-    { id: 'lastfm', badge: { letter: 'L', color: sourceColor.lastfm }, artists: lastfmSimilar },
-    { id: 'listenbrainz', badge: { letter: 'B', color: sourceColor.listenbrainz }, artists: listenbrainzSimilar },
-  ].filter(row => row.artists.length > 0), [catalogueEnabled, catalogueSimilar, lastfmSimilar, listenbrainzSimilar]);
+  return useMemo(() => ([
+    { id: 'deezer', artists: catalogueEnabled ? catalogueSimilar : [] },
+    { id: 'lastfm', artists: lastfmSimilar },
+    { id: 'listenbrainz', artists: listenbrainzSimilar },
+  ] satisfies ExternalSimilarRow[]).filter(row => row.artists.length > 0), [catalogueEnabled, catalogueSimilar, lastfmSimilar, listenbrainzSimilar]);
 }

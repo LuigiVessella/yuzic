@@ -11,6 +11,26 @@ function fakeClock() {
 }
 
 describe('createRateLimiter', () => {
+  it('spaces starts while slow responses overlap, bounding concurrency', async () => {
+    const clock = fakeClock();
+    const limit = createRateLimiter(100, clock.now, clock.wait, 2);
+    const starts: number[] = [];
+    const releases: (() => void)[] = [];
+    const call = () => limit(() => {
+      starts.push(clock.now());
+      return new Promise<void>(resolve => releases.push(resolve));
+    });
+    const pending = [call(), call(), call()];
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(starts).toEqual([0, 100]);
+    releases[0]();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(starts).toEqual([0, 100, 200]);
+    releases[1]();
+    releases[2]();
+    await Promise.all(pending);
+  });
+
   it('spaces a burst so no two calls start closer than the interval', async () => {
     const clock = fakeClock();
     const limit = createRateLimiter(1000, clock.now, clock.wait);

@@ -21,6 +21,7 @@
  */
 import type { Album } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
+import type { Song } from '@/domain/entities/Song';
 import type { AlbumDetail } from '@/domain/entities/Detail';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 
@@ -38,6 +39,7 @@ interface ArtistEnrichment {
 
 /** Which entity kinds a search should ask for. */
 interface CatalogueSearchKinds {
+  songs: boolean;
   artists: boolean;
   albums: boolean;
 }
@@ -49,6 +51,7 @@ interface CatalogueSearchMatch<T> {
 }
 
 interface CatalogueSearchResults {
+  songs: CatalogueSearchMatch<Song>[];
   artists: CatalogueSearchMatch<Artist>[];
   albums: CatalogueSearchMatch<Album>[];
 }
@@ -65,6 +68,8 @@ export interface CapabilityMap {
   'artist.enrich': (artist: Artist) => Promise<ArtistEnrichment | null>;
   /** Browse a catalogue this provider holds but the user does not own. */
   'catalogue.album': (nativeId: string) => Promise<AlbumDetail | null>;
+  /** Reopen a track selected from persisted search history. */
+  'catalogue.song': (nativeId: string) => Promise<Song | null>;
   /**
    * Free-text search of a catalogue the user does not own.
    *
@@ -76,7 +81,8 @@ export interface CapabilityMap {
    */
   'catalogue.search': (
     query: string,
-    kinds: CatalogueSearchKinds
+    kinds: CatalogueSearchKinds,
+    signal?: AbortSignal,
   ) => Promise<CatalogueSearchResults>;
 }
 

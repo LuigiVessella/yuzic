@@ -69,6 +69,7 @@ export const PlayingProvider: React.FC<{ children: ReactNode }> = ({ children })
   useCarPlayBrowseTree(resources.resolvePlayableSong);
   const services = usePlaybackServices();
   const engine = usePlaybackEngine(session, resources, services);
+  const { connectionInterrupted } = engine;
   useRestorePersistedQueue(session, resources.resolve, engine.loadQueueRef);
   usePlaybackPersistenceSync({ session, snapshot, isPlaying, services, scrobbleOutgoing: engine.scrobbleOutgoing });
   const actions = usePlayingCommands(session, resources, services, engine);
@@ -78,13 +79,14 @@ export const PlayingProvider: React.FC<{ children: ReactNode }> = ({ children })
     currentSong,
     isPlaying,
     isBuffering,
+    connectionInterrupted,
     currentIndex,
     repeatOn: repeatMode !== 'off',
     repeatMode,
     shuffleMode,
     playbackSpeed,
     volume,
-  }), [currentSong, isPlaying, isBuffering, currentIndex, repeatMode, shuffleMode, playbackSpeed, volume]);
+  }), [currentSong, isPlaying, isBuffering, connectionInterrupted, currentIndex, repeatMode, shuffleMode, playbackSpeed, volume]);
 
   return (
     <PlayingActionsContext.Provider value={actions}>

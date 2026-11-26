@@ -21,6 +21,7 @@ export default function ArtistResult({ result, activeServerId, navigation, navig
     <ArtistRow
       artist={resultToArtist(result, activeServerId)}
       rounded
+      subtitle={result.subtext}
       onPress={artist => {
         onSelect(result);
         prefetchCovers([artist.cover], 'detail');

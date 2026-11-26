@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 import SearchResultsBody from './SearchResultsBody';
 
@@ -20,6 +20,7 @@ jest.mock('@/components/SkeletonListRow', () => {
   const { View } = require('react-native');
   return { __esModule: true, default: () => <View testID="skeleton-row" /> };
 });
+jest.mock('@/components/Touchable', () => require('react-native').Pressable);
 jest.mock('../browse/SearchBrowse', () => {
   const { View } = require('react-native');
   return { __esModule: true, default: () => <View testID="search-browse" /> };
@@ -43,12 +44,16 @@ const baseModel = {
   query: '',
   isSearching: false,
   isLoading: false,
-  isOtherScope: false,
+  resultScope: 'library',
+  showLibraryResults: true,
+  showExternalResults: false,
   showSourceHeaders: false,
   recentQueries: [] as string[],
   recentEntities: [] as unknown[],
   libraryResults: [] as unknown[],
   externalResultsBySource: new Map<string, unknown[]>(),
+  sourceStatuses: {} as Record<string, 'pending' | 'failed' | 'ready'>,
+  retrySource: jest.fn(),
   noResultsForScope: false,
   activeServerId: 'srv',
   navigation: {},
@@ -92,6 +97,33 @@ describe('SearchResultsBody, empty query', () => {
   it('browses rather than showing a blank screen when searching with no history', async () => {
     const view = await renderBody({ isSearching: true });
     expect(view.getByTestId('search-browse')).toBeTruthy();
+  });
+});
+
+describe('SearchResultsBody, combined query', () => {
+  it('offers retry beside a failed source while keeping the library rows', async () => {
+    const retrySource = jest.fn();
+    const view = await renderBody({
+      query: 'Lontano', resultScope: 'all', showExternalResults: true,
+      libraryResults: [{ id: 'owned', type: 'song', title: 'Lontano in library' }],
+      externalResultsBySource: new Map([['deezer', []]]),
+      sourceStatuses: { deezer: 'failed' }, retrySource,
+    });
+    expect(view.getByText('Lontano in library')).toBeTruthy();
+    expect(view.getByText('search.sourceUnavailable')).toBeTruthy();
+    await fireEvent.press(view.getByText('search.retrySource'));
+    expect(retrySource).toHaveBeenCalledWith('deezer');
+  });
+
+  it('keeps library and provider sections visible together', async () => {
+    const view = await renderBody({
+      query: 'Lontano', resultScope: 'all', showLibraryResults: true, showExternalResults: true,
+      libraryResults: [{ id: 'owned', type: 'song', title: 'Lontano in library' }],
+      externalResultsBySource: new Map([['deezer', [{ id: 'external', type: 'song', title: 'Lontano on Deezer' }]]]),
+    });
+    expect(view.getByText('Lontano in library')).toBeTruthy();
+    expect(view.getByText('Lontano on Deezer')).toBeTruthy();
+    expect(view.getByText('deezer')).toBeTruthy();
   });
 });
 

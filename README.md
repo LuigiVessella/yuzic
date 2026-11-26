@@ -21,6 +21,7 @@
 - **A complete library** — browse artists, albums, tracks, playlists, and genres; search on-device or through your server, and rate what you play where your server keeps ratings.
 - **Play it elsewhere** — use AirPlay on iOS, DLNA/UPnP on your network, or your server's jukebox where available.
 - **Private by default** — optional integrations stay off until you enable them.
+- **App language** — choose English, French, Italian, Japanese, or Chinese in Settings → Appearance.
 
 ## Screenshots
 
@@ -29,5 +30,8 @@
 | ![Yuzic Home](assets/screenshots/home.png) | ![Yuzic Player](assets/screenshots/player.png) | ![Yuzic Artist](assets/screenshots/artist.png) | ![Yuzic Offline Downloads](assets/screenshots/downloads.png) |
 
 ## Contributing
+
+For this personal fork's Android test builds and releases, see
+[the fork build and release guide](docs/fork-releases.md).
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and checks, open an [issue](https://github.com/yuzicapp/yuzic/issues) to discuss a change, or join us on [Discord](https://discord.gg/NzsGEhg5Fs).

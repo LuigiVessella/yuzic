@@ -86,7 +86,7 @@ const LibraryItem: React.FC<Props> = ({
         }
       />
 
-      <View style={isGridView ? styles.gridText : styles.listText}>
+      <View style={isGridView ? [styles.gridText, circularImage && styles.artistText] : styles.listText}>
         <Text testID={titleTestID} style={[styles.title, { color: colors.secondary }]} numberOfLines={1}>
           {title}
         </Text>
@@ -127,11 +127,13 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   gridText: {
-    marginTop: spacing.tight,
+    marginTop: spacing.sm,
     width: '100%',
   },
+  artistText: { alignItems: 'center' },
   title: {
     ...typography.compactRowTitle,
+    fontWeight: '500',
   },
   subtext: {
     ...typography.caption,

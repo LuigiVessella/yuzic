@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import * as lidarr from '@/providers/integration/lidarr'
 import * as slskd from '@/providers/integration/slskd'
 import * as soulsync from '@/providers/integration/soulsync'
+import { log } from '@/features/diagnostics/log'
 import * as downtify from '@/providers/integration/downtify'
 import type { SlskdSearchPreferences } from '@/providers/integration/slskd'
 import type { DownloaderId } from '@/state/redux/slices/downloadersSlice'
@@ -12,6 +13,8 @@ import { selectDownloadersForActiveServer, downloaderCredentialScope } from '@/s
 import { selectActiveServerId, selectCredentialsHydrated } from '@/state/redux/selectors/serversSelectors'
 import { getCredentials } from '@/state/credentialCache'
 import type { Health } from '@/providers/contracts/Provider'
+import { acquisitionAlbum } from '@/providers/registry/acquisitionIdentity'
+import { currentMusicbrainzClient } from '@/providers/registry/musicbrainz'
 import type {
   AlbumDownloadRequest,
   DownloadOptions,
@@ -44,12 +47,12 @@ function lidarrConfigOf(config: DownloaderConfig): LidarrConfig {
   return { serverUrl: config.serverUrl, apiKey: config.apiKey }
 }
 
-const lidarrDownloadAlbum = (
+const lidarrDownloadAlbum = async (
   config: DownloaderConfig,
   album: AlbumDownloadRequest,
   options?: DownloadOptions
 ) =>
-  lidarr.downloadAlbum(config, lidarr.albumRequestFromExternal(album), {
+  lidarr.downloadAlbum(config, lidarr.albumRequestFromExternal(await acquisitionAlbum(album)), {
     qualityProfileId: options?.qualityProfileId,
   })
 
@@ -106,6 +109,7 @@ function soulsyncConfigOf(config: DownloaderConfig): soulsync.SoulSyncConfig {
 
 function slskdConfigOf(config: DownloaderConfig): slskd.SlskdConfig {
   return {
+    musicbrainz: currentMusicbrainzClient(),
     serverUrl: config.serverUrl,
     apiKey: config.apiKey,
     preferences: config.preferences as SlskdSearchPreferences | undefined,
@@ -119,6 +123,7 @@ const slskdDownloadAlbum = (config: DownloaderConfig, album: AlbumDownloadReques
     // Preserve any MBID the resolver captured — the slskd side uses it to
     // pull canonical strings from MusicBrainz before searching Soulseek.
     mbid: album.externalIds.mbid ?? null,
+    mbidType: album.externalIds.mbidType,
   })
 
 const slskdDownloadTrack = (config: DownloaderConfig, req: TrackDownloadRequest) =>
@@ -173,11 +178,23 @@ const slskdDownloader: DownloaderDefinition = {
  * `downloadAlbum`, and the reason that field became optional.
  */
 const soulsyncDownloadTrack = async (config: DownloaderConfig, req: TrackDownloadRequest): Promise<DownloadResult> => {
+  let requestId: string | undefined
   try {
-    await soulsync.downloadTrack(soulsyncConfigOf(config), req)
-    return { success: true }
+    const soulSyncConfig = soulsyncConfigOf(config)
+    requestId = (await soulsync.downloadTrack(soulSyncConfig, req)).requestId
+    const outcome = await soulsync.waitForRequestOutcome(soulSyncConfig, requestId)
+    if (outcome === 'downloading' || outcome === 'completed') return { success: true }
+    return { success: false, code: outcome, message: `SoulSync request ${outcome}` }
   } catch (error) {
-    const code = error instanceof soulsync.SoulSyncError ? error.code : undefined
+    const soulSyncError = error instanceof soulsync.SoulSyncError ? error : null
+    log.downloads.warn('SoulSync track request failed', {
+      code: soulSyncError?.code ?? (error instanceof Error ? error.name : 'UnknownError'),
+      status: soulSyncError?.status,
+    })
+    // A network failure after the 202 leaves a real search running on the
+    // server. Do not call it a failed request or encourage a duplicate tap.
+    const code = requestId && (!soulSyncError || soulSyncError.status === 404)
+      ? 'unconfirmed' : soulSyncError?.code
     return { success: false, code, message: (error as Error)?.message ?? 'SoulSync request failed' }
   }
 }

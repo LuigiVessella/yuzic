@@ -10,10 +10,11 @@ import { makeLocalId } from '@/domain/identity/LocalId';
 import type { Provenance } from '@/domain/identity/Provenance';
 import type { ExternalIds } from '@/domain/identity/ExternalIds';
 import { albumCoverSubject, coverOrMissing, missingCover, type CoverSource } from '@/domain/entities/Cover';
-import { buildSongCover, type MediaBrowserBrand } from './brand';
+import { buildCoverWithTag, buildSongCover, type MediaBrowserBrand } from './brand';
 import { normalizeGenres } from './utils/normalizeGenres';
 import { albumRef, artistRef } from './mapRefs';
 import type { MediaBrowserItem } from './types';
+import type { Loudness } from '@/domain/entities/Loudness';
 import { internCover } from '@/domain/entities/internRef';
 
 /** MediaBrowser reports duration in 100ns ticks, not seconds. */
@@ -41,6 +42,28 @@ function songCover(
   return coverOrMissing(buildSongCover(brand, dto.Id, albumId, dto.AlbumPrimaryImageTag), subject);
 }
 
+/**
+ * What Jellyfin measured about this track's loudness (#314).
+ *
+ * `NormalizationGain` is Jellyfin's name for track gain in dB, and it arrives
+ * on audio items unrequested — see {@link MediaBrowserItem}. Mapping it is
+ * what makes loudness levelling and its preamp do anything here: the preamp
+ * is added to a *measured* figure, so with nothing measured the slider moved
+ * and the sound did not.
+ *
+ * Undefined rather than zero when the server says nothing, because the engine
+ * reads an absent figure as "leave this track alone" and a zero as "this track
+ * is already at reference loudness". No peak accompanies either figure, so the
+ * engine's clipping guard has nothing to clamp against on Jellyfin; it handles
+ * that by leaving the gain as asked.
+ */
+function loudnessOf(dto: MediaBrowserItem): Loudness | undefined {
+  const loudness: Loudness = {};
+  if (typeof dto.NormalizationGain === 'number') loudness.trackGainDb = dto.NormalizationGain;
+  if (typeof dto.AlbumNormalizationGain === 'number') loudness.albumGainDb = dto.AlbumNormalizationGain;
+  return Object.keys(loudness).length > 0 ? loudness : undefined;
+}
+
 interface MapSongContext {
   provenance: Provenance;
   brand: MediaBrowserBrand;
@@ -56,8 +79,13 @@ export function mapSong(dto: MediaBrowserItem, context: MapSongContext): Song {
   const { provenance, brand } = context;
   const nativeId = dto.Id ?? '';
   const albumId = dto.AlbumId ?? context.albumId;
+  const albumTitle = context.albumTitle ?? dto.Album;
   const artistItem = dto.ArtistItems?.[0];
-  const cover = internCover(context.cover ?? songCover(dto, brand, albumId, artistItem?.Name ?? dto.AlbumArtist, context.albumTitle));
+  const cover = internCover(context.cover ?? songCover(dto, brand, albumId, artistItem?.Name ?? dto.AlbumArtist, albumTitle));
+  const albumCover = internCover(context.cover ?? coverOrMissing(
+    buildCoverWithTag(brand, albumId, dto.AlbumPrimaryImageTag),
+    albumCoverSubject(albumTitle, dto.AlbumArtist ?? artistItem?.Name),
+  ));
   const mediaSource = dto.MediaSources?.[0];
   const audioStream = mediaSource?.MediaStreams?.find(stream => stream.Type === 'Audio');
   const ticks = dto.RunTimeTicks ?? mediaSource?.RunTimeTicks ?? 0;
@@ -69,7 +97,7 @@ export function mapSong(dto: MediaBrowserItem, context: MapSongContext): Song {
     externalIds: externalIdsOf(dto),
     title: dto.Name ?? 'Unknown',
     artist: artistRef(provenance, artistItem?.Id, artistItem?.Name ?? dto.AlbumArtist),
-    album: albumRef(provenance, albumId, context.albumTitle, cover),
+    album: albumRef(provenance, albumId, albumTitle, albumCover),
     cover,
     durationSeconds: Math.round(ticks / TICKS_PER_SECOND),
     // Everything reachable through the library's song endpoints is a song;
@@ -85,6 +113,7 @@ export function mapSong(dto: MediaBrowserItem, context: MapSongContext): Song {
     serverLastPlayedAt: dto.UserData?.LastPlayedDate
       ? Date.parse(dto.UserData.LastPlayedDate) || undefined
       : undefined,
+    loudness: loudnessOf(dto),
     audio: {
       bitrateKbps: audioStream?.BitRate ?? mediaSource?.Bitrate,
       sampleRateHz: audioStream?.SampleRate,

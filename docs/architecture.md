@@ -237,6 +237,67 @@ Bookmarks are the mirror of the same story: Navidrome has an explicit endpoint,
 Jellyfin has the same information as `PlaybackPositionTicks` on items. Both
 back the same local map.
 
+Explicit player open/close commands advance a transient interaction epoch.
+A drag captures that epoch at touch-down and stops writing after a later
+command, so a release cannot undo the Back button or close chevron. Queue
+highlighting follows `currentIndex`, not song identity, because a queue may
+contain the same song more than once.
+
+### The player is one panel
+
+`PlayerHost` translates one clipped surface containing `PlayingScreen`; it no
+longer measures, scales or draws artwork above the navigator. The mini player
+always owns its thumbnail, and `PlayerArtwork` owns its bounded horizontal
+carousel, prefetching through the shared artwork cache. Window-coordinate cover
+slots and their handover state have been removed from `PlayerExpansion`.
+Only expansion, the command epoch and the body's scroll offset cross that seam.
+The wash uses the shared cover-accent hook and a restrained design token.
+
+The screen measures its fixed header and footer to size the body. Only the
+header and artwork can start a close drag. A drag begun while the body is
+scrolled stays a scroll until the next gesture; controls and queue rows do not
+inherit a close pan. Reduced motion fades the panel in place. The mini player's
+transport buttons stop press propagation, and a close command supersedes both
+opening and closing gestures already in flight.
+
+Favorites reuse the existing offline-aware star/unstar mutations and shared
+action feedback, scoped to the active server. Lyrics pause auto-follow on manual
+scroll, resume on an explicit action, and expose compact transport without a
+second player session. Untimed lyrics never auto-follow. Seek previews update
+only the progress/timestamps component, keeping the artwork out of that render
+loop. No persisted playback field or engine method is added by this redesign.
+
+Both progress bars scale a fixed-width fill. The full player's seek bar
+updates the fill on the UI thread and sends timestamp previews to React only
+when a displayed second changes. Reduced motion applies progress samples
+directly.
+
+### Queue edits, starts and playback recovery
+
+Queue persistence requests position preservation only when the saved server and
+active song still match. New user-selected playback explicitly resets the
+checkpoint through `playbackStarters` before replacing the queue, including a
+restart of the same song. Filtering transient content maps the active occurrence
+by original queue position, never `indexOf(songId)`.
+
+Only native audio `error` events enter playback recovery. Rejected bridge calls
+produce `operationError`, naming the operation and classifying it as command or
+maintenance; they remain logged without marking a listen interrupted, rebuilding
+the queue or dropping a track. This does not yet make a void cache command's UI
+success awaitable.
+
+A retry refreshes resources together with their original indices. If the active
+occurrence cannot resolve, playback pauses and the original queue is retained.
+Otherwise the queue, index and segment ownership are projected through the same
+retained indices before the engine is reloaded. Duplicate song ids therefore do
+not move the playhead to another occurrence during recovery.
+
+A remote stream error during a detected outage pauses playback and keeps the
+entire queue. Repeated native network errors also preserve the queue after
+automatic recovery is exhausted. The player offers Retry after connectivity
+returns. Retry reloads the same queue occurrence and seeks to the captured
+position, refreshing URLs where possible and retaining the other entries.
+
 ### Adding a new persisted playback dimension
 
 Add the field to `PlaybackState`, an action + reducer, a selector in
@@ -265,6 +326,10 @@ jukebox means the phone plays the track a second time, out loud, next to the
 server already playing it.
 
 ## The player, and the seam it sits behind
+
+`ExternalResolutionProvider` wraps both the navigator and `PlayerHost` in the
+root layout, inside `BottomSheetModalProvider`. The player is a sibling of the
+navigator and cannot read a context provided only by the `(home)` route.
 
 `features/player/backend.ts` defines `PlayerBackend` — the surface the app
 actually uses, derived from its own call sites rather than from anyone's idea
@@ -337,16 +402,33 @@ corrupting the index) or releasing the live one mid-track.
 it and turns each song into a row through the phone queue's own
 `resolvePlayableSong`, so a download plays from the device and the user's
 quality applies. `carBrowseTree` decides the shape, and is pure so it is
-tested: at most four tabs (Recent, Favorites, Playlists, Albums, with
-Downloads when there is room), Shuffle first in every folder, and offline only
-what is downloaded, with Downloads first. Two rules in the conversion
+tested: Android has Recent, Library (Artists, Albums, Playlists), Favorites
+and Downloads, omitting empty tabs. CarPlay keeps Recent, Favorites, Playlists
+and Albums, with Downloads when there is room. Shuffle leads playable folders;
+when the network or server is unreachable, only downloaded tracks remain and
+Downloads comes first. Android
+publishes the full synced catalog without the old 50-collection/100-track cuts;
+missing details drain in batches of at most three shared-cache requests, stopping
+new batches when the account or catalog changes. Empty cached playlists are
+complete results, not missing data. Artist identity comes from the server id,
+not the display name. Long collection lists are grouped by initial; album and
+playlist track lists stay intact so selection preserves the full queue.
+Folder artwork carries the same authentication as tracks, falls back to a
+track's artwork, and never sends a drawn-cover sentinel to the engine. Two rules in the conversion
 (`toBrowseNode`, `createEngineBackend.setBrowseTree`) matter:
 
 - A node's id is its path (`albums/album-1/<song>`), never the song's id. The
   engine keeps the first of a repeated id, and the same song sits under
-  Favorites and its album, so with bare ids it vanished from the album.
+  Favorites and its album, so with bare ids it vanished from the album. Repeated
+  tracks within a playlist get an entry-position path while retaining their
+  original playable track id.
 - An unchanged tree is not sent again. Each send redraws the car and, on
   Android, rewrites the encrypted copy on disk.
+
+Nested Android browse folders carry a `layout` hint through `BrowseItem`:
+album/playlist covers use grids, their tracks use lists. The host retains
+control over the final presentation. Search uses the engine's existing native
+search over this same complete tree; no extra server search is introduced.
 
 **On iOS a car can start the app with no phone window.** `AppDelegate` starts
 the one React root when a CarPlay scene connects, and `PhoneSceneDelegate`
@@ -411,6 +493,26 @@ track/album/auto modes. Those three behave identically today because the
 engine's `Track` carries a single gain figure rather than a pair, so offering
 the choice would be offering three names for one behaviour. Album mode wants an
 engine change, not a settings entry.
+
+### Android notification and lock-screen entry
+
+`patches/yuzic-engine+1.3.2.patch` supplies the media session's activity from
+Android's launcher intent for the running application id, using an immutable,
+updateable activity PendingIntent. Notification and lock-screen entry share the
+same session activity; the host's existing singleTask activity reuses its task.
+The patch is applied by the existing mandatory postinstall/patch verification
+path and must be reviewed when updating the engine pin.
+For Windows builds it also invokes FFmpeg's configure script through MSYS2 `sh`,
+selects its host `gcc`, and copies the two source include directories because
+creating symlinks requires privileges that a normal Windows build lacks.
+
+When JavaScript recovers playback from the native queue, `resourceFromMediaItem`
+forwards album title and artwork URL to `resourceFromPlayerItem` instead of
+replacing the cover with `none`. The full player also retries its three visible
+artwork images once on foreground return, clearing transient failure marks and
+remounting the image surfaces against the existing disk cache. Backgrounding
+cancels an unfinished artwork slide. No queue reset or new server endpoint is
+required for either entry path.
 
 ## 3. `contentKind` — routing the player around non-song content
 
@@ -630,6 +732,9 @@ Three shapes of consumer:
 2. **Has a local equivalent but isn't a query** — search. See
    `features/search/searchLegs.ts`: the legs are decided before any fetch, and a
    *server* scope falls back to the local index rather than to nothing.
+   External sources report pending and failed requests individually.
+   Retrying a failed source keeps the other results and uses the current
+   query's cancellation signal.
 3. **Has no local equivalent** (radio, podcasts, shares, the server-backed Home
    shelves) — gate `enabled` on `useServerReachable()` and render an offline
    empty state. These have nothing to degrade *to*, so the honest answer is to
@@ -687,7 +792,30 @@ bodies' worth of divergence.
   difference the row layer already encodes but the list bodies keep explicit.
   Converging them is a deferred, higher-risk option, not an accident.
 
+The Artists collection initially hides explicit featuring credits when the lead
+artist has one unambiguous entry. Semicolon credits require an unambiguous
+entry for each participant. The collection switch reveals the full list.
+The index uses the server's ordered album-artist references when available,
+so a joint release appears on each artist's page. Older cached albums use
+their primary artist. Collections collapse repeats of the same server ID.
+Quick Picks can use artwork from the corresponding library album when a
+track thumbnail is missing or fails to load.
+
+Artist pages use the library artist when the route has its server ID or
+when an external result matches a library identity. A name-only match
+requires an unambiguous library artist; it is rechecked as the library
+hydrates. Explicit external routes retain their source identity. Related
+artists share one shelf, with library copies preferred and distinct external
+identities preserved.
+Owned releases and missing releases each have a direct route to their
+full list. External releases use the shared source-aware album resolver.
+When a catalogue has same-name artist profiles, an owned album can identify
+the correct profile for the missing-release list; ties remain unresolved.
+
 ## 7. Providers and capabilities
+
+The shared UI's Studio presentation is described in [studio-ui.md](studio-ui.md).
+It uses the existing entity models, action handlers and theme hooks.
 
 A feature asks *what can do this*, never *which product it is*. Two mechanisms
 answer that, and which one a job uses depends on how many providers can do it.
@@ -725,6 +853,11 @@ answer that, and which one a job uses depends on how many providers can do it.
   check `ImageTags` (`itemCover`), Deezer's empty-hash silhouette is no picture
   (`imageCover`), Navidrome 0.64+ omits `coverArt`. No list, fetcher or screen
   looks pictures up itself.
+  Track rows, Quick Picks and the mini player can fall back to the track's
+  album artwork. Missing album covers still pass through resolution rather
+  than being discarded by their `none` kind. `MediaImage` observes shared
+  URL failures, so recovery on another surface updates mounted thumbnails;
+  a transient failure permits a retry on a later render after 30 seconds.
 - **Feature-owned registries**, for jobs with one provider each and behaviour
   no shared contract carries. Downloads are `features/downloaders/registry.ts`
   (`DownloaderDefinition`: `downloadAlbum`/`downloadTrack` with per-call
@@ -791,6 +924,17 @@ acquiring. The two are deliberately different code paths.
   surfacing all activity a provider reports including jobs started outside yuzic,
   reading the single shared `useDownloadersQueue` poll.
 
+A wanted transfer reported as inactive at 100% is shown as waiting for library
+import (`processing`), not queued or arrived. Only the synced catalog confirms
+arrival; this adds no poll and persists no additional status.
+
+External album rows and actions read the same queued/importing states, including
+a wanted request's existing grace window before it appears in the downloader
+queue. Concurrent Get confirmations for the same target/provider are coalesced;
+failure releases the guard for an explicit retry. Release-group and release
+identities remain distinct: the acquisition boundary resolves an edition to
+its group for Lidarr without changing the browsed entity.
+
 ## 9. Feature-oriented settings — configure the goal, not the provider
 
 Settings pages are organized by what the user wants yuzic to *do*, not by which
@@ -835,18 +979,52 @@ which screen writes the value it is reading.
   Overview and Genres, Plex's summary and Genre). **Display-only and
   gaps-only**: nothing is written to any server or onto an entity, so disabling
   instantly restores the server view. A small "via X" line, never per-item badges.
-- **Search** (`features/settings/search/`, `features/search/searchLegs.ts`) — a segmented
-  **Your Library** (default, no external calls) / **Other sources** scope with a
-  Filters sheet for search-enabled sources and entity types. `planSearchLegs`
-  picks library **XOR** external by scope, so results are never mixed by default;
+- **Search** (`features/settings/search/`, `features/search/searchLegs.ts`) —
+  **All sources** by default, with **Your Library** and **Other sources** filters.
+  The library and each enabled external source have separate result sections;
   provenance is preserved and editions/ambiguous matches stay separate.
   `searchSourcesEnabled` is independent of Home enablement (legacy
   `deezerSearchEnabled` reconciled at read time, no migration).
+
+Search defaults to `all`: the on-device library appears immediately, while
+enabled external catalogues fill separate source sections as they answer. The
+`library` and `other` filters remain available. A one-time settings migration
+moves prior scope selections to `all` and adds songs to the external type
+filter; source-use switches remain authoritative and are never enabled by the
+migration. External song rows open acquisition actions, not local playback.
+Search history reopens external tracks through each provider's `catalogue.song`
+capability.
 
 ## 10. Discovery — local-first, provider mixes, and generated playlists
 
 Home discovery is off by default and layered so the local tier always works
 with zero external calls.
+
+Deezer supplies catalogue suggestions and samples; MusicBrainz supplies canonical
+identity and paged discographies; ListenBrainz supplies personal mixes. All three
+ListenBrainz shelves select from one shared per-user query. Before playback the
+mix is resolved against the library and only owned tracks enter its full-audio
+queue; tapping an unowned track opens the shared acquisition actions. The player
+also rejects unresolved external recording ids at its stream-URL boundary.
+
+Discovery caches hold candidates, not library exclusions: the shared identity
+index filters owned albums at render time, leaving missing albums by familiar
+artists eligible. Existing seeded shuffle rotates catalogue candidates by the
+Home day/refresh seed without moving them on ordinary renders. Playlist
+recommendations expand candidates in batches of four
+and stop once eight distinct tracks are available. A deliberate Home refresh
+expires Deezer's discovery cache, while retaining name/identity lookups.
+Known catalogue items may be opened under the Home/Pages use that supplied them;
+cross-source name searches still require the Search use. Metadata-server addresses
+and recommendation-source choices are included in the affected query keys.
+Known conflicting MusicBrainz entities never become a name-only library match;
+a release-track placement id is not published as a recording MBID. ListenBrainz
+artist/release references retain the canonical identifiers present in JSPF.
+
+Public API limiters space request starts with at most three requests in flight,
+so one slow response cannot block every subsequent start. Superseded external
+searches propagate an AbortSignal through the capability broker to the clients;
+cancellable searches do not share an in-flight promise with other callers.
 
 Home shelf personalization is additive and tier-safe: the Home settings slice
 (`features/settings/home/state.ts`) stores
@@ -1006,6 +1184,71 @@ Read a theme value through `useActiveTheme()`/`useTheme()`, never at module
 import time: a static read cannot change when the theme does, and the whole
 point of this is that it changes.
 
+## 13. Diagnostics — failures the user can send you
+
+Every failure the app noticed used to go to `console`. Fifty-six call sites,
+all of them `warn` or `error`, every one a deliberate report of something
+going wrong, and not one reachable from a device in a listener's hands. They
+are all gone now — `check-console.mjs` holds the count at zero, and the only
+module allowed to print is the log's own development sink. The cost of the
+old arrangement was not hypothetical: `ErrorBoundary` caught the crash that shipped as
+#325 and passed `info.componentStack` — which named the provider that was
+missing, the entire diagnosis — to `console.error`. Three people reported that
+bug with screenshots, and the answer had been on each of their phones.
+
+So `features/diagnostics` is a log with levels (`debug`/`info`/`warn`/`error`),
+a closed set of scopes, a bounded buffer, and an export. Four rules hold it
+together.
+
+**A record is fields, not prose.** `log.playback.warn('stream stalled', {
+songId, position })`. The message is short and fixed; everything that varies
+goes in `fields`, whose values are primitives by type. That is what makes a
+log filterable, what bounds the size of a record so the buffer can be bounded
+by count, and what keeps a field from retaining a component tree or a whole
+queue. A message that interpolates is also unsearchable: two reports of one
+failure never share a line.
+
+**Credentials are scrubbed on the way in, never on the way out.** Every
+stream and artwork URL carries the user's credentials — Subsonic's `t` is
+md5(password + salt), Jellyfin sends `api_key` — so a URL in a log is a
+password in a log. The engine formats failures as prose, and an `NSError` from
+a failed load carries the failing URL, so URLs arrive already interpolated
+into messages. `scrub` runs in `emit`, before the buffer and before any sink:
+query strings and `user:pass@` go, host and path stay, because the endpoint is
+most of the diagnosis and the host is how a failover problem is recognised.
+Scrubbing at export instead would leave the secret in the buffer and on disk
+for the next reader to find — and the whole point is an export a user attaches
+to a public issue.
+
+**The buffer is bounded and the store is debounced.** A ring of 400 records
+overwrites oldest-first, so a week-long session costs what a minute does. It
+persists because a crash log that dies with its process cannot describe a
+crash — but written whole on a 2s debounce rather than per record, since the
+engine measured a failing stream at 121 failures a minute and each write
+serialises the buffer. `flushNow()` exists for the fatal handler, which is
+about to restart the app; MMKV is synchronous and memory-mapped, so that is
+safe to call there.
+
+**The log is its own store.** A fourth MMKV instance, beside redux, the query
+cache and the catalog. A user who has just sent a report may delete what it
+held without that touching their settings or costing a re-sync, so the log
+needs its own `clearAll` — and it is the one store written during a crash,
+which is a poor moment to share an instance with the user's library.
+
+Scopes are a closed union (`record.ts`) rather than free strings, so `log.playbck`
+does not compile and `player`/`playback`/`Player` cannot become three names for
+one area. Add to the set deliberately, naming the area rather than the file.
+
+**The migration is what the gate was for.** `check-console.mjs` was baselined
+at the 56 sites and is shrink-only, so the old habit could not grow back while
+they were moved area by area — adapters first, since that is where a failing
+stream surfaces, then playback, player, offline, library and servers. It now
+holds zero, which makes it a ban in practice while staying a ratchet in
+mechanism. Two tests had asserted `console.error` was called, which was the
+clearest evidence these were deliberate reports and not debug chatter; they
+assert on the record's provider, operation and detail now, which is more than
+a spy could tell them.
+
 ## Where things live
 
 ```
@@ -1038,6 +1281,9 @@ src/providers/
 
 src/features/           — one directory per feature: its screen, components,
                           hooks and logic together
+  diagnostics/          — the log: record shape and scopes, scrub (credentials
+                          out at capture), the bounded ring, the persisted
+                          store a crash survives
   playback/
     PlayingContext.tsx  — the player. Consumes the server adapter,
                           dispatches into playbackSlice, checks contentKind

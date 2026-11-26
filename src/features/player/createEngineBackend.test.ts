@@ -345,7 +345,7 @@ describe('failures the app would otherwise never see', () => {
     await flush();
 
     expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'error', code: 'ENGINE_CALL_FAILED' })
+      expect.objectContaining({ type: 'operationError', kind: 'command', operation: 'play', code: 'ENGINE_CALL_FAILED' })
     );
   });
 
@@ -353,7 +353,7 @@ describe('failures the app would otherwise never see', () => {
     const backend = createEngineBackend();
     const seen: { message?: string }[] = [];
     backend.addListener((event: { type: string; message?: string }) => {
-      if (event.type === 'error') seen.push(event);
+      if (event.type === 'operationError') seen.push(event);
     });
 
     backend.setup();
@@ -624,6 +624,24 @@ describe('a queue the car started', () => {
 });
 
 describe('the browse tree the car is given', () => {
+  it('retains repeated playlist entries with unique browse ids and the same playable identity', async () => {
+    const backend = createEngineBackend();
+    backend.setup();
+    await flush();
+    backend.setBrowseTree([{
+      mediaId: 'playlist', title: 'Playlist', items: [
+        { mediaId: 'song', title: 'Song', url: 'https://music.test/song' },
+        { mediaId: 'song', title: 'Song again', url: 'https://music.test/song' },
+      ],
+    }]);
+    await flush();
+    const tree = named('setBrowseTree')[0].args[0] as {
+      children: { children: { id: string; playable: { id: string } }[] }[];
+    };
+    const entries = tree.children[0].children;
+    expect(new Set(entries.map(entry => entry.id)).size).toBe(2);
+    expect(entries.map(entry => entry.playable.id)).toEqual(['song', 'song']);
+  });
   interface Node {
     id: string;
     artworkUri?: string;
@@ -784,4 +802,19 @@ describe('the browse tree the car is given', () => {
     await flush();
     expect(named('setBrowseTree')).toHaveLength(3);
   });
+});
+
+it.each(['clearCache', 'setBrowseTree', 'setEqualizer'])('reports %s failure separately from audio errors', async operation => {
+  const backend = createEngineBackend();
+  const seen: unknown[] = [];
+  backend.addListener((event: unknown) => seen.push(event));
+  backend.setup();
+  await flush();
+  mockFailing = operation;
+  if (operation === 'clearCache') backend.clearCache();
+  else if (operation === 'setBrowseTree') backend.setBrowseTree([{ mediaId: 'test', title: 'Test', items: [] }]);
+  else backend.setEqualizer([]);
+  await flush();
+  expect(seen).toContainEqual(expect.objectContaining({ type: 'operationError', kind: 'maintenance', operation }));
+  expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }));
 });

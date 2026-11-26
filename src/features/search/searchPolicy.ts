@@ -22,14 +22,10 @@ import type { Playlist } from '@/domain/entities/Playlist';
 import type { Song } from '@/domain/entities/Song';
 import type { SearchResult } from '@/features/search/searchRanking';
 
-/** Entity types an external source can be asked to return. Deliberately
- *  narrower than the library's four kinds — 'song'/'playlist' have no
- *  external equivalent through Deezer/MusicBrainz today, so filtering on
- *  them would just always empty out; the Filters UI only offers what a
- *  source actually supports. */
-export type SearchEntityType = 'album' | 'artist';
+/** Searchable external entity types. Playlists remain library-only. */
+export type SearchEntityType = 'song' | 'album' | 'artist';
 
-export const ALL_SEARCH_ENTITY_TYPES: SearchEntityType[] = ['album', 'artist'];
+export const ALL_SEARCH_ENTITY_TYPES: SearchEntityType[] = ['song', 'album', 'artist'];
 
 // --- result mapping: library entity -> SearchResult -------------------------
 
@@ -183,10 +179,13 @@ export async function searchServerLeg(searchApi: ServerSearchApi, query: string,
 export async function searchExternalLeg(
   sourceIds: string[],
   query: string,
-  entityTypes: SearchEntityType[]
+  entityTypes: SearchEntityType[],
+  signal?: AbortSignal,
+  onSourceSettled?: (sourceId: string, results: SearchResult[] | null) => void,
 ): Promise<SearchResult[]> {
   if (!query.trim() || sourceIds.length === 0) return [];
   const kinds = {
+    songs: entityTypes.includes('song'),
     artists: entityTypes.includes('artist'),
     albums: entityTypes.includes('album'),
   };
@@ -206,22 +205,17 @@ export async function searchExternalLeg(
   );
   if (offers.length === 0) return [];
 
-  // Settled one by one: a source over its rate limit, or simply down, must not
-  // take the others' answers with it. The leg fails only when nobody answered.
-  const settled = await Promise.allSettled(
-    offers.map(async offer => ({
-      providerId: offer.providerId,
-      found: await offer.invoke(query, kinds),
-    }))
-  );
-  const perProvider = settled.flatMap(outcome => (outcome.status === 'fulfilled' ? [outcome.value] : []));
-  if (perProvider.length === 0) {
-    const firstFailure = settled.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
-    throw firstFailure?.reason ?? new Error('No external source answered');
-  }
-
-  const results: SearchResult[] = [];
-  for (const { providerId, found } of perProvider) {
+  type Found = Awaited<ReturnType<(typeof offers)[number]['invoke']>>;
+  const mapFound = (providerId: string, found: Found): SearchResult[] => {
+    const results: SearchResult[] = [];
+    for (const { entity, subtitle } of found.songs ?? []) {
+      results.push({
+        id: entity.nativeId, title: entity.title, subtext: subtitle,
+        cover: entity.cover, type: 'song', source: 'external',
+        externalSource: providerId, externalIds: entity.externalIds,
+        isDownloaded: false, song: entity,
+      });
+    }
     for (const { entity, subtitle } of found.artists) {
       results.push({
         id: entity.nativeId,
@@ -240,14 +234,35 @@ export async function searchExternalLeg(
         id: entity.nativeId,
         title: entity.title,
         subtext: subtitle,
+        artistName: entity.artist.name,
         cover: entity.cover,
         type: 'album',
         source: 'external',
         externalSource: providerId,
         externalIds: entity.externalIds,
+        releaseType: entity.releaseType,
         isDownloaded: false,
       });
     }
+    return results;
+  };
+
+  // Publish each source as soon as it answers, without waiting for the others.
+  const settled = await Promise.allSettled(offers.map(async offer => {
+    try {
+      const found = await offer.invoke(query, kinds, signal);
+      const mapped = mapFound(offer.providerId, found);
+      onSourceSettled?.(offer.providerId, mapped);
+      return mapped;
+    } catch (error) {
+      if (!signal?.aborted) onSourceSettled?.(offer.providerId, null);
+      throw error;
+    }
+  }));
+  const answered = settled.flatMap(outcome => outcome.status === 'fulfilled' ? [outcome.value] : []);
+  if (answered.length === 0) {
+    const firstFailure = settled.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+    throw firstFailure?.reason ?? new Error('No external source answered');
   }
-  return results;
+  return answered.flat();
 }

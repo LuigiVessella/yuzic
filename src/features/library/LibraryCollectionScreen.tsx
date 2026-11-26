@@ -1,11 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRoute } from '@react-navigation/native'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import { useTranslation } from 'react-i18next'
 import { notify } from '@/components/toast';
 import { ArrowDownToLine, Disc3, ListMusic, Music2, Users } from 'lucide-react-native'
 
+import SettingsToggleRow from '@/features/settings/components/SettingsToggleRow'
 import { DetailHeaderBar } from '@/components/DetailHeader'
 import EmptyState from '@/components/EmptyState'
 import { usePlayingActions } from '@/features/playback/PlayingContext'
@@ -74,6 +75,7 @@ type CollectionParams = {
 }
 
 const LibraryCollectionScreen: React.FC = () => {
+  const navigation = useNavigation()
   const route = useRoute<any>()
   const params = (route.params ?? {}) as CollectionParams
   const { type, sort } = params
@@ -86,7 +88,15 @@ const LibraryCollectionScreen: React.FC = () => {
     sort ?? (type ? DEFAULT_SORT[type] : 'recent')
   )
 
-  const { items, isLoading } = useLibraryItems(type ?? null, sortOrder)
+  const changeSort = useCallback((next: SortOrder) => {
+    setSortOrder(next)
+    // Keep the navigation entry truthful too, so restoring this screen does
+    // not silently revert the sort that the listener chose.
+    navigation.setParams({ sort: next } as never)
+  }, [navigation])
+
+  const [showCollaborations, setShowCollaborations] = useState(false)
+  const { items, isLoading } = useLibraryItems(type ?? null, sortOrder, showCollaborations)
   const { playSongs } = usePlayingActions()
 
   const title = type ? t(TITLE_KEY[type]) : t('library.title')
@@ -109,7 +119,7 @@ const LibraryCollectionScreen: React.FC = () => {
     }
   }, [playableTracks, playSongs, t])
 
-  const count = items.length > 0
+  const count = items.length > 0 || (type === 'artists' && !isLoading)
     ? t(type ? COUNT_KEY[type] : 'library.count.items', { count: items.length })
     : undefined
 
@@ -133,6 +143,13 @@ const LibraryCollectionScreen: React.FC = () => {
       style={[styles.screen, { backgroundColor: colors.background }]}
     >
       <DetailHeaderBar title={title} subtitle={count} />
+      {type === 'artists' && (
+        <SettingsToggleRow
+          label={t('library.collection.showCollaborations')}
+          value={showCollaborations}
+          onValueChange={setShowCollaborations}
+        />
+      )}
 
       {isLoading && items.length === 0 ? (
         <LoadingLibraryList collection={type ?? null} />
@@ -147,7 +164,7 @@ const LibraryCollectionScreen: React.FC = () => {
           items={items}
           collection={type ?? null}
           sortOrder={sortOrder}
-          onSortChange={setSortOrder}
+          onSortChange={changeSort}
           sortLabel={sortLabels[sortOrder]}
           header={header}
           refresh={refresh}

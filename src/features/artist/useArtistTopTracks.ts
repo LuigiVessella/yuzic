@@ -7,6 +7,7 @@ import type { Artist } from '@/domain/entities/Artist'
 type Input = {
   name: string
   mbid?: string | null
+  catalogueId?: string
   enabled: boolean
 }
 
@@ -16,17 +17,16 @@ type Result = {
   isLoading: boolean
 }
 
-export function useArtistTopTracks({ name, mbid, enabled }: Input): Result {
+export function useArtistTopTracks({ name, mbid, catalogueId, enabled }: Input): Result {
   const query = useQuery({
-    queryKey: [QueryKeys.LocalArtistTopTracks, name],
+    queryKey: [QueryKeys.LocalArtistTopTracks, catalogueId ?? name, mbid],
     enabled: enabled && !!name,
     staleTime: 1000 * 60 * 60 * 24,
     networkMode: 'online',
     queryFn: async () => {
       const source = ALL_SOURCES[0]
-      const resolved = await source.resolveArtist(name)
-      if (!resolved) return null
-      return source.fetchArtist(resolved.id, mbid)
+      const id = catalogueId ?? (await source.resolveArtist(name))?.id
+      return id ? source.fetchArtist(id, mbid) : null
     },
   })
 

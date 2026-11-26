@@ -47,10 +47,11 @@ export function usePlayingCommands(
   const sinkRef = useLatestRef(sink);
   const jukeboxPosition = useLatestRef(jukeboxState?.positionSeconds ?? 0);
   const { api, buildItem, toMediaItems, resolve, resolvePlayableSong } = resources;
-  const { resetLastScrobbled } = services;
-  const { loadQueueRef, scrobbleOutgoing, autoplay } = engine;
+  const { resetLastScrobbled, persistence } = services;
+  const { loadQueueRef, scrobbleOutgoing, autoplay, retryConnection, clearConnectionRetry } = engine;
 
   const starters = useMemo(() => createPlaybackStarters({
+    resetPosition: () => persistence.current.persistPosition(0, { force: true }),
     backend: getBackend,
     queue: session.queue,
     setQueue: session.setQueue,
@@ -62,13 +63,18 @@ export function usePlayingCommands(
     resolvePlayableSong: song => resolve.current(song),
     toMediaItems,
     bumpQueue: session.bumpQueue,
-    loadQueue: (queue, startIndex) => loadQueueRef.current(queue, startIndex),
+    loadQueue: (queue, startIndex) => {
+      clearConnectionRetry();
+      return loadQueueRef.current(queue, startIndex);
+    },
     now: Date.now,
-  }), [loadQueueRef, resolve, session, toMediaItems]);
+  }), [clearConnectionRetry, loadQueueRef, resolve, session, toMediaItems, persistence]);
 
   const transport = useMemo(() => createTransportController({
     backend: getBackend,
     remoteOwnsPlayback: () => ownsPlayback(sinkRef.current),
+    retryConnection,
+    clearConnectionRetry,
     sink: { pause: sinkPause, resume: sinkResume, seek: sinkSeek, skipTo: sinkSkipTo },
     jukeboxPosition: () => jukeboxPosition.current,
     currentResource: session.currentResource,
@@ -81,7 +87,7 @@ export function usePlayingCommands(
       scrobbleOutgoing(session.currentResource()?.song ?? null, listenedSeconds),
     setActive: session.setActive,
     markNewListen: () => session.markNewListen(),
-  }), [jukeboxPosition, scrobbleOutgoing, session, sinkPause, sinkRef, sinkResume, sinkSeek, sinkSkipTo]);
+  }), [clearConnectionRetry, jukeboxPosition, retryConnection, scrobbleOutgoing, session, sinkPause, sinkRef, sinkResume, sinkSeek, sinkSkipTo]);
 
   const queue = useMemo(() => createQueueController({
     backend: getBackend,

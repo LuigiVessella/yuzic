@@ -66,7 +66,7 @@ export function playableSongs(
   for (const song of songs) {
     const p = playability.get(song.localId);
     if (!p || p.kind === 'unavailable') continue;
-    result.push(p.kind === 'preview' ? { ...song, streamId: p.streamId } : song);
+    result.push(p.kind === 'preview' ? { ...song, contentKind: 'preview', streamId: p.streamId } : song);
   }
   return result;
 }

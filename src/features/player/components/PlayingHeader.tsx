@@ -3,8 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Ellipsis } from 'lucide-react-native';
 
+import { Text } from '@/components/Text';
+import { usePlayingState } from '@/features/playback/PlayingContext';
 import Touchable from '@/components/Touchable';
-import { hitSlopFor, iconSize, onDark, spacing } from '@/constants/design';
+import { hitSlopFor, iconSize, onDark, spacing, typography } from '@/constants/design';
 import SleepTimerIndicator from './SleepTimerIndicator';
 
 /**
@@ -28,6 +30,7 @@ const PlayingHeader: React.FC<{
     onOpenSongOptions: () => void;
 }> = ({ paddingTop, paddingBottom, onClose, onOpenSleepTimer, onOpenSongOptions }) => {
     const { t } = useTranslation();
+    const { currentSong } = usePlayingState();
 
     return (
         <View style={[styles.header, { paddingTop, paddingBottom }]}>
@@ -41,6 +44,10 @@ const PlayingHeader: React.FC<{
             >
                 <ChevronDown size={iconSize.large} color={onDark.text} />
             </Touchable>
+
+            <Text style={styles.context} numberOfLines={1}>
+                {currentSong?.album.title || t('playing.queue.playingFromQueue')}
+            </Text>
 
             {/* A running sleep timer says so beside the ⋯ that sets it, rather
                 than adding a third control to the transport row. */}
@@ -75,6 +82,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    context: { ...typography.caption, color: onDark.subtext, flex: 1, textAlign: 'center', paddingHorizontal: spacing.md },
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',

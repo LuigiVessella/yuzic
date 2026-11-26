@@ -12,6 +12,7 @@ import type { Song } from '@/domain/entities/Song';
 import Touchable from '@/components/Touchable';
 import { iconSize, onDark, spacing, typography, veil } from '@/constants/design';
 import { useRadius } from '@/features/theme/useRadius';
+import SpinningLoaderCircle from '@/components/SpinningLoaderCircle';
 import { useListDensity } from '@/features/theme/useListDensity';
 
 type QueueItemProps = {
@@ -43,6 +44,8 @@ const QueueItem = memo(
     <Touchable
       onPress={() => onPress(index)}
       onLongPress={drag}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isCurrent }}
       style={[
         styles.queueItem,
         { borderRadius: rad.md, paddingVertical: density.trackRowPadding },
@@ -51,6 +54,7 @@ const QueueItem = memo(
     >
       <MediaImage
         cover={item.cover}
+        fallbackCover={item.album.cover}
         size="thumb"
         style={[styles.artwork, { borderRadius: rad.md }]}
       />
@@ -82,7 +86,7 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
 }) => {
   const { t } = useTranslation();
   const rad = useRadius();
-  const { currentSong, isPlaying } = usePlayingState();
+  const { currentSong, currentIndex, isPlaying, isBuffering } = usePlayingState();
   const { getQueue, skipTo, moveTrack, pauseSong, resumeSong, skipToNext } = usePlayingActions();
   const queueVersion = usePlayingQueueVersion();
 
@@ -117,11 +121,11 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
       <QueueItem
         item={item}
         index={index}
-        isCurrent={item.localId === currentSong?.localId}
+        isCurrent={index === currentIndex}
         onPress={handleSongClick}
       />
     ),
-    [currentSong?.localId, handleSongClick]
+    [currentIndex, handleSongClick]
   );
 
   return (
@@ -141,6 +145,7 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
         {currentSong && (
           <MediaImage
             cover={currentSong.cover}
+            fallbackCover={currentSong.album.cover}
             size="thumb"
             style={[styles.headerImage, { borderRadius: rad.md }]}
           />
@@ -168,7 +173,9 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
             onPress={isPlaying ? pauseSong : resumeSong}
             style={[styles.controlButton, { borderRadius: rad.md }]}
           >
-            {isPlaying
+            {isBuffering
+              ? <SpinningLoaderCircle size={iconSize.control} color={onDark.text} />
+              : isPlaying
               ? <Pause size={iconSize.control} color={onDark.text} fill={onDark.text} />
               : <Play size={iconSize.control} color={onDark.text} fill={onDark.text} />
             }
@@ -195,12 +202,12 @@ const Queue: React.FC<{ onBack: () => void; width: number }> = ({
       {/* List */}
       <ReorderableList
         data={queue}
-        keyExtractor={item => item.localId}
+        keyExtractor={(item, index) => `${item.localId}:${index}`}
         onReorder={handleReorder}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 160,
+          paddingBottom: insets.bottom + spacing.scrollClearance,
         }}
         initialNumToRender={12}
         maxToRenderPerBatch={10}
@@ -263,7 +270,7 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    ...typography.rowTitle,
+    ...typography.navigationTitle,
     color: onDark.text,
     marginBottom: spacing.xxs,
   },

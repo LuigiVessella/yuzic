@@ -8,7 +8,7 @@ import audiomuseReducer from './slices/audiomuseSlice';
 import settingsAppearanceReducer from '@/features/settings/appearance/state';
 import { migrateAppearance } from '@/features/settings/appearance/themeStore';
 import settingsHomeReducer from '@/features/settings/home/state';
-import settingsSearchReducer from '@/features/settings/search/state';
+import settingsSearchReducer, { migrateSearchSettings } from '@/features/settings/search/state';
 import settingsSourcesReducer from '@/features/settings/sources/state';
 import { importLegacySourceSettings } from '@/providers/registry/legacySourceSettings';
 import settingsScrobblingReducer from '@/features/settings/scrobbling/state';
@@ -67,7 +67,10 @@ const settingsAppearancePersistConfig = {
   migrate: (state: any): Promise<any> => Promise.resolve(migrateAppearance(state)),
 };
 const settingsHomePersistConfig = { key: 'settingsHome', storage };
-const settingsSearchPersistConfig = { key: 'settingsSearch', storage, version: 1 };
+const settingsSearchPersistConfig = {
+  key: 'settingsSearch', storage, version: 2,
+  migrate: async (state: any) => migrateSearchSettings(state),
+};
 // Every outside-source switch, by use. The first read, with nothing stored
 // yet, imports the switches that used to live in Home, Search, Metadata and
 // Lyrics. Those records are only read, never rewritten here: stripping the

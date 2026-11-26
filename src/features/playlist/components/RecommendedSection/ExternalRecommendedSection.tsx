@@ -16,7 +16,7 @@ import SkeletonListRow from '@/components/SkeletonListRow';
 import GetReviewSheet from '@/components/options/GetReviewSheet';
 import { useSheetRef } from '@/components/useSheetRef';
 import { useIsOffline } from '@/features/connectivity/useIsOffline';
-import { useAnyAlbumDownloaderConnected } from '@/features/downloaders/registry';
+import { useAnyTrackDownloaderConnected } from '@/features/downloaders/registry';
 import { selectShowSourceHeaders } from '@/features/settings/appearance/state';
 import { selectSourceUse } from '@/features/settings/sources/state';
 import {
@@ -67,15 +67,18 @@ export const ExternalRecommendedSection: React.FC<Props> = ({ playlist, songs, o
   // artist page reads, so turning a source on there turns it on here too.
   const scrobblesSimilar = useSelector(selectSourceUse(SCROBBLES_SIMILAR_USE)) && SCROBBLES_AVAILABLE;
   const catalogueSimilar = useSelector(selectSourceUse(CATALOGUE_SIMILAR_USE));
-  const hasDownloader = useAnyAlbumDownloaderConnected();
+  const hasDownloader = useAnyTrackDownloaderConnected();
   const downloadSheetRef = useSheetRef();
-  const [albumForDownload, setAlbumForDownload] = useState<Album | null>(null);
+  const [downloadSelection, setDownloadSelection] = useState<{
+    album: Album;
+    track: { title: string; artist: string };
+  } | null>(null);
 
   const playlistArtistNames = useMemo(() => computePlaylistArtistNames(songs), [songs]);
 
   const externalQueryKey = useMemo(
-    () => [QueryKeys.RecommendedExternalSongs, 'playlist', playlist.nativeId, playlistArtistNames.join(',')],
-    [playlist.nativeId, playlistArtistNames]
+    () => [QueryKeys.RecommendedExternalSongs, 'playlist', playlist.localId, playlistArtistNames, scrobblesSimilar, catalogueSimilar],
+    [playlist.localId, playlistArtistNames, scrobblesSimilar, catalogueSimilar]
   );
 
   const similarSources = useMemo<SimilarArtistSources>(
@@ -111,7 +114,7 @@ export const ExternalRecommendedSection: React.FC<Props> = ({ playlist, songs, o
         return;
       }
 
-      setAlbumForDownload(album);
+      setDownloadSelection({ album, track: { title: song.title, artist: song.artist.name || album.artist.name } });
       requestAnimationFrame(() => {
         downloadSheetRef.current?.present();
       });
@@ -165,9 +168,10 @@ export const ExternalRecommendedSection: React.FC<Props> = ({ playlist, songs, o
         ))
       )}
 
-      {albumForDownload && (
+      {downloadSelection && (
         <GetReviewSheet
-          album={albumForDownload}
+          album={downloadSelection.album}
+          track={downloadSelection.track}
           sheetRef={downloadSheetRef}
         />
       )}

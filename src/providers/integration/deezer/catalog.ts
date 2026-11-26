@@ -8,6 +8,8 @@ import type { Album } from '@/domain/entities/Album';
 import type { Song } from '@/domain/entities/Song';
 import type { AlbumDetail } from '@/domain/entities/Detail';
 import type { ArtistRef } from '@/domain/entities/EntityRef';
+import { uniqueNameMatch } from '@/domain/identity/catalogueMatch';
+import { normalizeName } from '@/domain/identity/matching';
 import { integrationProvenance } from '@/domain/identity/Provenance';
 
 const PROVENANCE = integrationProvenance('deezer');
@@ -37,6 +39,16 @@ const CACHE_MAX_ENTRIES = 500;
 
 const memoryCache = new Map<string, { expiresAt: number; value: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
+let cacheRevision = 0;
+
+/** A deliberate Home refresh renews discovery data, retaining name/identity lookups. */
+export function refreshDeezerDiscovery(): void {
+  cacheRevision += 1;
+  for (const key of memoryCache.keys()) {
+    if (/^(chart-|related-artists:|artist-albums:|genre-artists:)/.test(key)) memoryCache.delete(key);
+  }
+  pendingRequests.clear();
+}
 
 function cacheTtl<T>(value: T, ttlMs: number): number {
   return Array.isArray(value) && value.length === 0 ? EMPTY_CACHE_MS : ttlMs;
@@ -45,17 +57,20 @@ function cacheTtl<T>(value: T, ttlMs: number): number {
 async function cached<T>(
   key: string,
   ttlMs: number,
-  loader: () => Promise<T>
+  loader: () => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const now = Date.now();
+  const revision = cacheRevision;
   const hit = memoryCache.get(key);
   if (hit && hit.expiresAt > now) return hit.value as T;
 
-  const pending = pendingRequests.get(key);
+  const pending = signal ? undefined : pendingRequests.get(key);
   if (pending) return pending as Promise<T>;
 
   const request = loader()
     .then(value => {
+      if (revision !== cacheRevision || signal?.aborted) return value;
       if (!memoryCache.has(key) && memoryCache.size >= CACHE_MAX_ENTRIES) {
         memoryCache.delete(memoryCache.keys().next().value!);
       }
@@ -66,10 +81,10 @@ async function cached<T>(
       return value;
     })
     .finally(() => {
-      pendingRequests.delete(key);
+      if (!signal && pendingRequests.get(key) === request) pendingRequests.delete(key);
     });
 
-  pendingRequests.set(key, request);
+  if (!signal) pendingRequests.set(key, request);
   return request;
 }
 
@@ -91,25 +106,40 @@ function withFallbackArtist(album: Album, dto: DeezerAlbum, fallbackArtist?: Art
   return { ...album, artist: artistRef };
 }
 
-async function requestList<T>(path: string): Promise<T[]> {
-  const res = await deezerClient.request<DeezerListResponse<T>>(path);
+async function requestList<T>(path: string, signal?: AbortSignal): Promise<T[]> {
+  const res = await deezerClient.request<DeezerListResponse<T>>(path, signal);
   return Array.isArray(res.data) ? res.data : [];
 }
 
-export async function searchDeezerArtists(query: string, limit = 5): Promise<Artist[]> {
+export async function searchDeezerArtists(query: string, limit = 5, signal?: AbortSignal): Promise<Artist[]> {
   if (!query.trim()) return [];
   return cached(`search-artists:${query.trim().toLowerCase()}:${limit}`, SEARCH_CACHE_MS, async () => {
-    const artists = await requestList<DeezerArtist>(`/search/artist?q=${encodeURIComponent(query)}&limit=${limit}`);
+    const artists = await requestList<DeezerArtist>(`/search/artist?q=${encodeURIComponent(query)}&limit=${limit}`, signal);
     return artists.map(dto => mapArtist(dto, PROVENANCE));
-  });
+  }, signal);
 }
 
-export async function searchDeezerAlbums(query: string, limit = 8): Promise<Album[]> {
+export async function searchDeezerAlbums(query: string, limit = 8, signal?: AbortSignal): Promise<Album[]> {
   if (!query.trim()) return [];
   return cached(`search-albums:${query.trim().toLowerCase()}:${limit}`, SEARCH_CACHE_MS, async () => {
-    const albums = await requestList<DeezerAlbum>(`/search/album?q=${encodeURIComponent(query)}&limit=${limit}`);
+    const albums = await requestList<DeezerAlbum>(`/search/album?q=${encodeURIComponent(query)}&limit=${limit}`, signal);
     return albums.map(dto => mapAlbum(dto, { provenance: PROVENANCE }));
-  });
+  }, signal);
+}
+
+export async function searchDeezerTracks(query: string, limit = 8, signal?: AbortSignal): Promise<Song[]> {
+  if (!query.trim()) return [];
+  return cached(`search-tracks:${query.trim().toLowerCase()}:${limit}`, SEARCH_CACHE_MS, async () => {
+    const tracks = await requestList<DeezerTrack>(`/search/track?q=${encodeURIComponent(query)}&limit=${limit}`, signal);
+    return tracks.filter(track => track.id != null && track.album?.id != null)
+      .map(track => mapSong(track, { provenance: PROVENANCE, album: track.album! }));
+  }, signal);
+}
+
+export async function getDeezerTrack(trackId: string): Promise<Song | null> {
+  const track = await deezerClient.request<DeezerTrack>(`/track/${encodeURIComponent(trackId)}`);
+  return track.id != null && track.album?.id != null
+    ? mapSong(track, { provenance: PROVENANCE, album: track.album }) : null;
 }
 
 export async function getDeezerArtist(artistId: string): Promise<Artist | null> {
@@ -122,11 +152,12 @@ export async function getDeezerArtist(artistId: string): Promise<Artist | null> 
 export async function getDeezerArtistAlbums(
   artistId: string,
   limit = 50,
-  fallbackArtist?: Artist | null
+  fallbackArtist?: Artist | null,
+  offset = 0,
 ): Promise<Album[]> {
   const fallbackKey = fallbackArtist?.nativeId ?? fallbackArtist?.name ?? '';
-  return cached(`artist-albums:${artistId}:${limit}:${fallbackKey}`, ARTIST_ALBUMS_CACHE_MS, async () => {
-    const albums = await requestList<DeezerAlbum>(`/artist/${encodeURIComponent(artistId)}/albums?limit=${limit}`);
+  return cached(`artist-albums:${artistId}:${limit}:${fallbackKey}:${offset}`, ARTIST_ALBUMS_CACHE_MS, async () => {
+    const albums = await requestList<DeezerAlbum>(`/artist/${encodeURIComponent(artistId)}/albums?limit=${limit}&index=${offset}`);
     return albums.map(dto => withFallbackArtist(mapAlbum(dto, { provenance: PROVENANCE }), dto, fallbackArtist));
   });
 }
@@ -152,7 +183,12 @@ export async function getDeezerAlbum(albumId: string): Promise<AlbumDetail | nul
     const dto = await deezerClient.request<DeezerAlbum>(`/album/${encodeURIComponent(albumId)}`);
     if (!dto?.id) return null;
 
-    const trackDtos = dto.tracks?.data ?? [];
+    const trackDtos = [...(dto.tracks?.data ?? [])];
+    while (trackDtos.length < (dto.nb_tracks ?? trackDtos.length)) {
+      const page = await requestList<DeezerTrack>(`/album/${encodeURIComponent(albumId)}/tracks?limit=100&index=${trackDtos.length}`);
+      if (!page.length) break;
+      trackDtos.push(...page);
+    }
     const songs = trackDtos.map(track => mapSong(track, { provenance: PROVENANCE, album: dto }));
     const album = mapAlbum(dto, { provenance: PROVENANCE, songIds: songs.map(s => s.localId) });
 
@@ -163,8 +199,8 @@ export async function getDeezerAlbum(albumId: string): Promise<AlbumDetail | nul
 export async function resolveDeezerArtistByName(name: string): Promise<Artist | null> {
   if (!name.trim()) return null;
   return cached(`resolve-artist:${name.trim().toLowerCase()}`, SEARCH_CACHE_MS, async () => {
-    const [artist] = await searchDeezerArtists(name, 1);
-    return artist ?? null;
+    const artists = await searchDeezerArtists(name, 5);
+    return uniqueNameMatch(artists, name, artist => artist.name);
   });
 }
 
@@ -208,9 +244,12 @@ export async function getDeezerChartAlbums(limit = 10): Promise<Album[]> {
 export async function resolveDeezerAlbum(artist: string, title: string): Promise<Album | null> {
   const key = `${artist.trim().toLowerCase()}:${title.trim().toLowerCase()}`;
   return cached(`resolve-album:${key}`, SEARCH_CACHE_MS, async () => {
-    const precise = await searchDeezerAlbums(`artist:"${artist}" album:"${title}"`, 1);
-    if (precise[0]) return precise[0];
-    const fallback = await searchDeezerAlbums(`${artist} ${title}`, 1);
-    return fallback[0] ?? null;
+    const precise = await searchDeezerAlbums(`artist:"${artist.replace(/["\\]/g, '\\$&')}" album:"${title.replace(/["\\]/g, '\\$&')}"`, 5);
+    const candidates = precise.length ? precise : await searchDeezerAlbums(`${artist} ${title}`, 5);
+    return uniqueNameMatch(
+      candidates.filter(album => normalizeName(album.artist.name) === normalizeName(artist)),
+      title,
+      album => album.title,
+    );
   });
 }

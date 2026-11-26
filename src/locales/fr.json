@@ -133,7 +133,8 @@
         "english": "Anglais",
         "japanese": "Japonais",
         "french": "Français",
-        "chinese": "Chinois"
+        "chinese": "Chinois",
+        "italian": "Italien"
       },
       "showQualityBadge": "Afficher le badge qualité",
       "showQualityBadgeSubtext": "Format et débit sur le lecteur.",
@@ -720,9 +721,21 @@
       "longestGap": "Jours sans écoute",
       "topArtists": "Vos artistes",
       "topTracks": "Vos titres"
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "explainer": "Yuzic enregistre ce qui ne fonctionne pas : morceaux en échec, plantages, téléchargements inachevés. Partagez ces informations avec un rapport de bug pour en trouver la cause. Les mots de passe et identifiants du serveur sont supprimés automatiquement ; les titres des morceaux et l'adresse de votre serveur peuvent apparaître.",
+      "share": "Partager les diagnostics",
+      "sharing": "Préparation…",
+      "clear": "Effacer les diagnostics",
+      "cleared": "Diagnostics effacés",
+      "empty": "Rien d'enregistré pour l'instant. Tout problème apparaîtra ici.",
+      "recordCount_one": "{{count}} entrée",
+      "recordCount_other": "{{count}} entrées"
     }
   },
   "common": {
+    "unknownArtist": "Artiste inconnu",
     "cancel": "Annuler",
     "delete": "Supprimer",
     "next": "Suivant",
@@ -776,7 +789,9 @@
     "home": {
       "subtitle": "Votre bibliothèque musicale personnelle. Diffusez depuis votre propre serveur, où que vous soyez.",
       "getStarted": "Commencer",
-      "terms": "En continuant, vous confirmez avoir lu et accepté nos Conditions d'utilisation et notre Politique de confidentialité"
+      "terms": "En continuant, vous confirmez avoir lu et accepté nos {{terms}} et notre {{privacy}}",
+      "termsLink": "Conditions d'utilisation",
+      "privacyLink": "Politique de confidentialité"
     },
     "servers": {
       "title": "Vos serveurs",
@@ -919,6 +934,7 @@
       "browse": "Explorer"
     },
     "collection": {
+      "showCollaborations": "Afficher les collaborations",
       "empty": "Rien ici pour l'instant.",
       "downloadedEmpty": "Rien de téléchargé pour l’instant. Téléchargez un album ou une playlist depuis ses options pour l’écouter sans connexion.",
       "playFailed": "Impossible de lancer la lecture."
@@ -1010,13 +1026,16 @@
     "title": "Recherche",
     "placeholder": "Rechercher de la musique, des artistes ou des listes de lecture...",
     "noResults": "Aucun résultat trouvé",
-    "searchError": "Impossible de joindre le serveur — les résultats peuvent être incomplets",
-    "searchLocalOnly": "Affichage de votre bibliothèque uniquement — serveur injoignable",
+    "searchError": "Certaines sources sont injoignables — les résultats peuvent être incomplets",
+    "sourceUnavailable": "Source indisponible",
+    "retrySource": "Réessayer {{source}}",
+    "searchLocalOnly": "Résultats disponibles affichés — certaines sources sont hors ligne",
     "recentSearches": "Recherches récentes",
     "clearRecent": "Effacer",
     "removeRecentSearch": "Supprimer « {{query}} » des recherches récentes",
     "recentlyOpened": "Ouverts récemment",
     "scope": {
+      "all": "Toutes les sources",
       "library": "Votre bibliothèque",
       "other": "Autres sources"
     },
@@ -1110,6 +1129,10 @@
     "offlineBanner": "Hors ligne — les découvertes sont en pause, votre bibliothèque reste accessible"
   },
   "playing": {
+    "connection": {
+      "offline": "Pas de r?seau. La musique enregistr?e reste disponible.",
+      "serverUnreachable": "Votre serveur musical est inaccessible. Vous pouvez ?couter la musique enregistr?e."
+    },
     "volume": "Volume",
     "volumeOnServer": "Volume du serveur",
     "output": {
@@ -1135,7 +1158,8 @@
       "playingFromQueue": "Lecture depuis la file d'attente"
     },
     "lyrics": {
-      "title": "Paroles"
+      "title": "Paroles",
+      "resumeFollowing": "Revenir au couplet actuel"
     },
     "aboutArtist": {
       "header": "Artiste"
@@ -1275,8 +1299,8 @@
       "title": "Album externe",
       "downloadToServer": "Télécharger sur le serveur",
       "downloadSong": "Télécharger le titre",
-      "get": "Récupérer",
-      "getSong": "Récupérer le titre",
+      "get": "Obtenir l’album",
+      "getSong": "Obtenir le morceau",
       "want": "Souhaiter",
       "wanted": "Souhaité",
       "arrived": "{{title}} est maintenant dans votre bibliothèque",
@@ -1292,7 +1316,7 @@
       "saveAsDefaultAlbums": "Enregistrer par défaut pour les albums",
       "saveAsDefaultTracks": "Enregistrer par défaut pour les titres",
       "qualityProfile": "Profil de qualité",
-      "confirmGet": "Récupérer"
+      "perTrack": "Une demande sera envoyée pour chaque morceau."
     },
     "serverStatus": {
       "onServer": "Dans la bibliothèque",
@@ -1335,6 +1359,10 @@
           "BAD_RESPONSE": "Cette adresse n’a pas répondu comme SoulSync. Vérifiez l’URL.",
           "HTTP_ERROR": "Impossible de joindre SoulSync. Vérifiez le serveur et réessayez.",
           "NOT_AVAILABLE": "SoulSync n’a aucune connexion Soulseek configurée.",
+          "INSUFFICIENT_SCOPE": "Cette clé API SoulSync peut lire les téléchargements mais pas en demander. Utilisez une clé avec accès en écriture.",
+          "not_found": "SoulSync n’a trouvé aucun morceau correspondant sur Soulseek.",
+          "failed": "SoulSync n’a pas pu terminer la recherche du morceau.",
+          "unconfirmed": "SoulSync a accepté la demande, mais son résultat reste inconnu. Vérifiez SoulSync avant de réessayer.",
           "no_tracks": "Impossible de lister les morceaux de cet album à demander.",
           "some_tracks_failed": "Certains morceaux de cet album n’ont pas pu être demandés à SoulSync."
         }
@@ -1373,6 +1401,7 @@
     "openArrival": "Ouvrir",
     "artistLabel": "Artiste",
     "status": {
+      "processing": "En attente d?import dans la biblioth?que",
       "queued": "En attente",
       "downloading": "Téléchargement · {{progress}} %",
       "failed": "Non reçu",
@@ -1667,6 +1696,7 @@
       "checkConnection": "Vérifier la connexion"
     },
     "player": {
+      "favorite": "Favori",
       "close": "Fermer le lecteur",
       "songOptions": "Options du morceau",
       "addToPlaylist": "Ajouter à une playlist",

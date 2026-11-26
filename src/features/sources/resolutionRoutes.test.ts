@@ -147,8 +147,13 @@ describe('a record whose own source is switched off', () => {
 });
 
 describe('pickFrom', () => {
-  it('goes straight to the best match when only one source answered', () => {
-    expect(pickFrom([['a1', 'a2'], []])).toEqual({ direct: 'a1', all: ['a1', 'a2'] });
+  it('opens a unique exact name directly while retaining weak matches for manual selection', () => {
+    expect(pickFrom([['exact', 'weak'], []], candidate => candidate === 'exact').direct).toBe('exact');
+    expect(pickFrom([['weak'], []], candidate => candidate === 'exact').direct).toBeNull();
+  });
+  it('keeps namesakes for the picker even when only one source answered', () => {
+    expect(pickFrom([['a1', 'a2'], []])).toEqual({ direct: null, all: ['a1', 'a2'] });
+    expect(pickFrom([['a1'], []])).toEqual({ direct: 'a1', all: ['a1'] });
   });
 
   it('keeps every source\'s runners-up for the picker when two answered', () => {

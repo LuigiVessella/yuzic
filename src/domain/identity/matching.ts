@@ -83,6 +83,11 @@ export function sharedIdentifier(a: ExternalIds, b: ExternalIds): MatchReason | 
   return null;
 }
 
+/** Same names must not override known, different MusicBrainz entities. */
+export function conflictingMbid(a: ExternalIds, b: ExternalIds): boolean {
+  return !!(a.mbid && b.mbid && a.mbid !== b.mbid && a.mbidType === b.mbidType);
+}
+
 /** What a candidate must expose to be matched. Deliberately structural. */
 export interface Matchable {
   localId: LocalId;
@@ -132,7 +137,7 @@ export function findMatch<T extends Matchable>(
   for (const candidate of candidates) {
     const reason = sharedIdentifier(subject.externalIds, candidate.externalIds);
     if (reason) { consider({ candidate, reason, confidence: 'exact' }); continue; }
-    if (nameKeysAgree(subject.nameKey, nameKeyOf(candidate))) {
+    if (!conflictingMbid(subject.externalIds, candidate.externalIds) && nameKeysAgree(subject.nameKey, nameKeyOf(candidate))) {
       consider({ candidate, reason: 'normalizedName', confidence: 'heuristic' });
     }
   }

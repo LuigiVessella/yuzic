@@ -4,7 +4,9 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 
-import { fetchMadeForYouMix, LISTENERS_HOME_USE, selectListenersAccountName, type CreatedForMixType } from '@/providers/registry/homeDiscovery';
+import { fetchMadeForYouMixes, LISTENERS_HOME_USE, selectListenersAccountName, type CreatedForMixType } from '@/providers/registry/homeDiscovery';
+import { useLocalFirst } from '@/features/library/useLocalFirst';
+import { useSongActionSheets } from '@/features/entity-actions/SongActionSheetContext';
 import { QueryKeys } from '@/state/query/queryKeys';
 import { selectSourceUse } from '@/features/settings/sources/state';
 import SectionShelfHeader from './SectionShelfHeader';
@@ -51,20 +53,24 @@ const MAX_TRACKS = 10;
 export default function LBCreatedForSection({ sectionKey, mixType, refreshKey = 0 }: Props) {
   const { t } = useTranslation();
   const { playSongs } = usePlayingActions();
+  const { preferLocalSong } = useLocalFirst();
+  const { openSongOptions } = useSongActionSheets();
   const discoveryEnabled = useSelector(selectSourceUse(LISTENERS_HOME_USE));
   const username = useSelector(selectListenersAccountName);
 
   const enabled = discoveryEnabled && Boolean(username);
 
-  const query = useQuery<Song[]>({
-    queryKey: [QueryKeys.LbCreatedForPlaylists, username || '', mixType, refreshKey],
-    queryFn: () => fetchMadeForYouMix(username, mixType),
+  const query = useQuery({
+    queryKey: [QueryKeys.LbCreatedForPlaylists, username || '', refreshKey],
+    queryFn: () => fetchMadeForYouMixes(username),
+    select: mixes => mixes.find(mix => mix.mixType === mixType)?.tracks ?? [],
     enabled,
     staleTime: 1000 * 60 * 60 * 6,
     networkMode: 'online',
   });
 
-  const data = useMemo(() => (query.data ?? []).slice(0, MAX_TRACKS), [query.data]);
+  const data = useMemo(() => (query.data ?? []).slice(0, MAX_TRACKS).map(preferLocalSong), [query.data, preferLocalSong]);
+  const playable = useMemo(() => data.filter(song => song.provenance.origin === 'server'), [data]);
   const isLoading = enabled && query.isLoading;
   const hasContent = isLoading || data.length > 0;
 
@@ -74,13 +80,18 @@ export default function LBCreatedForSection({ sectionKey, mixType, refreshKey = 
    *  neither a handler nor a collection, which is what `SongRow` disables
    *  itself on — the same defect as the local mix's (#264). */
   const playFrom = useCallback(async (startIndex: number) => {
-    if (!data.length) return;
+    const song = data[startIndex];
+    if (!song) return;
+    if (song.provenance.origin !== 'server') {
+      openSongOptions(song);
+      return;
+    }
     try {
-      await playSongs(data, { startIndex, contextId: `lb-created-for-${mixType}` });
+      await playSongs(playable, { startIndex: playable.indexOf(song), contextId: `lb-created-for-${mixType}` });
     } catch {
       notify.error(t('library.collection.playFailed'));
     }
-  }, [playSongs, data, mixType, t]);
+  }, [playSongs, data, playable, openSongOptions, mixType, t]);
 
   const renderSong = useCallback((song: Song, index: number) => (
     <SongRow

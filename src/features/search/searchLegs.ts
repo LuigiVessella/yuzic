@@ -1,10 +1,24 @@
+import type { SearchEntityType } from '@/features/search/searchPolicy';
+
 type SearchScope = 'client' | 'server';
 
 /** The scope of a search: the user's own library, or intentionally reaching
  *  out to other sources. Distinct from `SearchScope` above, which is about
  *  *how* the library leg is fetched (locally-indexed vs. the music server),
  *  not about whether external sources are in play at all. */
-export type SearchResultScope = 'library' | 'other';
+export type SearchResultScope = 'all' | 'library' | 'other';
+
+export type SearchFilters = {
+  /** `all` combines library and enabled external source sections. */
+  resultScope: SearchResultScope;
+  /** Source ids to query in `all` or `other` — the sources the
+   *  Filters sheet left checked, already narrowed to ones enabled for
+   *  search. Ignored when `resultScope` is 'library'. */
+  sourceIds: string[];
+  /** Which entity types to ask each external source for. Defaults to all
+   *  supported types when omitted. Ignored when `resultScope` is 'library'. */
+  entityTypes?: SearchEntityType[];
+};
 
 /**
  * Which legs of a search are worth attempting.
@@ -32,18 +46,15 @@ export type SearchResultScope = 'library' | 'other';
  * scope degrades to the local index rather than to an empty screen, which is
  * the whole point of having a synced library.
  *
- * **Library and external are never both attempted.** `resultScope` decides
- * which family runs at all: `'library'` only ever plans the client/server
- * legs, `'other'` only ever plans external ones — the segmented Search UI's
- * "Your Library" / "Other sources" choice, not an additional filter on top of
- * it. Mixing the two by default was explicitly ruled out.
+ * `all` runs the library and enabled external sources together. The narrower
+ * `library` and `other` filters each run only their own family.
  */
 type SearchLegPlan = {
   /** Search the locally synced library index. */
   client: boolean;
   /** Ask the music server. */
   server: boolean;
-  /** Which external sources to query — empty unless `resultScope` is `'other'`. */
+  /** Which external sources to query — empty in `library` scope. */
   externalSources: string[];
   /**
    * A leg the filters asked for was skipped because it couldn't be reached, so
@@ -67,8 +78,8 @@ export function planSearchLegs({
   serverReachable: boolean;
   deviceOnline: boolean;
 }): SearchLegPlan {
-  const isLibraryScope = resultScope === 'library';
-  const isOtherScope = resultScope === 'other';
+  const isLibraryScope = resultScope !== 'other';
+  const isOtherScope = resultScope !== 'library';
 
   const wantsServer = isLibraryScope && searchScope === 'server';
   const wantsExternal = isOtherScope && enabledExternalSourceIds.length > 0;
@@ -79,7 +90,7 @@ export function planSearchLegs({
   // The local index when the library scope was asked for, and also whenever
   // the server leg was wanted but can't run — otherwise the default scope
   // means an offline search over a fully synced library shows nothing.
-  const client = isLibraryScope && (searchScope === 'client' || (wantsServer && !server));
+  const client = isLibraryScope && (resultScope === 'all' || searchScope === 'client' || (wantsServer && !server));
 
   return {
     client,

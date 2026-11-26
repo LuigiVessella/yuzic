@@ -67,6 +67,8 @@ export function SongActionSheetProvider({ children }: { children: ReactNode }) {
         <SongOptions
           ref={optionsRef}
           selectedSong={selectedSong}
+          albumTitle={selectedSong.album.title}
+          albumArtist={selectedSong.artist.name}
           onAddToPlaylist={openPlaylistList}
         />
       )}

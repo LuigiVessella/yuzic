@@ -51,14 +51,27 @@ export type MbTrack = {
   title: string;
   length: number | null;
   position: number;
+  discNumber?: number;
   recording?: { id: string };
   'artist-credit'?: { name?: string; artist: { id?: string; name: string } }[];
+};
+
+export type MbRecording = {
+  id: string;
+  title: string;
+  length?: number | null;
+  'artist-credit'?: MbTrack['artist-credit'];
+  releases?: { 'release-group'?: MbReleaseGroup }[];
 };
 
 type MbRelease = {
   id: string;
   title: string;
-  media: { tracks: MbTrack[] }[];
+  status?: string;
+  date?: string;
+  'release-group'?: MbReleaseGroup;
+  'artist-credit'?: MbReleaseGroup['artist-credit'];
+  media: { position?: number; format?: string; tracks?: MbTrack[] }[];
 };
 
 /**
@@ -83,21 +96,21 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
   // spacing separately would together send twice the allowed rate.
   // `currentMusicbrainzClient` only calls this when an address is set, which
   // is what keeps there being exactly one.
-  const spaced: <T>(run: () => Promise<T>) => Promise<T> = custom
+  const spaced: <T>(run: () => Promise<T>, signal?: AbortSignal) => Promise<T> = custom
     ? run => run()
     : createRateLimiter(MUSICBRAINZ_MIN_INTERVAL_MS);
 
-  async function mb<T>(path: string): Promise<T> {
+  async function mb<T>(path: string, signal?: AbortSignal): Promise<T> {
     return spaced(async () => {
-      const res = await fetchWithTimeout(`${base}${path}`, { headers: HEADERS });
+      const res = await fetchWithTimeout(`${base}${path}`, { headers: HEADERS, ...(signal ? { signal } : {}) });
       if (!res.ok) throw new Error(`MusicBrainz ${res.status}: ${path}`);
       return res.json() as Promise<T>;
-    });
+    }, signal);
   }
 
-  async function searchArtist(name: string, limit = 5): Promise<MbArtist[]> {
-    const q = encodeURIComponent(`artist:"${name}"`);
-    const data = await mb<{ artists: MbArtist[] }>(`/artist?query=${q}&limit=${limit}&fmt=json`);
+  async function searchArtist(name: string, limit = 5, signal?: AbortSignal): Promise<MbArtist[]> {
+    const q = encodeURIComponent(`artist:"${name.replace(/["\\]/g, '\\$&')}"`);
+    const data = await mb<{ artists: MbArtist[] }>(`/artist?query=${q}&limit=${limit}&fmt=json`, signal);
     return data.artists ?? [];
   }
 
@@ -106,7 +119,7 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
     title: string,
     limit = 5
   ): Promise<MbReleaseGroup[]> {
-    const q = encodeURIComponent(`artist:"${artist}" releasegroup:"${title}"`);
+    const q = encodeURIComponent(`artist:"${artist.replace(/["\\]/g, '\\$&')}" releasegroup:"${title.replace(/["\\]/g, '\\$&')}"`);
     const data = await mb<{ 'release-groups': MbReleaseGroup[] }>(
       `/release-group?query=${q}&limit=${limit}&fmt=json`
     );
@@ -121,14 +134,31 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
    */
   async function searchReleaseGroupByTitle(
     query: string,
-    limit = 5
+    limit = 5,
+    signal?: AbortSignal,
   ): Promise<MbReleaseGroup[]> {
     if (!query.trim()) return [];
-    const q = encodeURIComponent(`releasegroup:"${query}"`);
+    const q = encodeURIComponent(`releasegroup:"${query.replace(/["\\]/g, '\\$&')}"`);
     const data = await mb<{ 'release-groups': MbReleaseGroup[] }>(
-      `/release-group?query=${q}&limit=${limit}&fmt=json`
+      `/release-group?query=${q}&limit=${limit}&fmt=json`, signal
     );
     return data['release-groups'] ?? [];
+  }
+
+  async function searchRecordingByTitle(query: string, limit = 6, signal?: AbortSignal): Promise<MbRecording[]> {
+    if (!query.trim()) return [];
+    const escape = (part: string) => part.replace(/["\\]/g, '\\$&');
+    const parts = query.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
+    const search = parts.length === 2
+      ? `(recording:"${escape(parts[0])}" AND artist:"${escape(parts[1])}") OR (recording:"${escape(parts[1])}" AND artist:"${escape(parts[0])}")`
+      : `recording:"${escape(query)}"`;
+    const q = encodeURIComponent(search);
+    const data = await mb<{ recordings: MbRecording[] }>(`/recording?query=${q}&limit=${limit}&fmt=json`, signal);
+    return data.recordings ?? [];
+  }
+
+  async function getRecording(mbid: string): Promise<MbRecording> {
+    return mb<MbRecording>(`/recording/${encodeURIComponent(mbid)}?inc=artist-credits+releases&fmt=json`);
   }
 
   async function getArtistWithReleases(mbid: string): Promise<MbArtist> {
@@ -139,21 +169,42 @@ export function createMusicbrainzClient(config: MusicbrainzConfig = {}) {
     return mb<MbReleaseGroup>(`/release-group/${mbid}?inc=artist-credits&fmt=json`);
   }
 
+  async function getArtistReleaseGroups(mbid: string, limit = 25, offset = 0): Promise<MbReleaseGroup[]> {
+    const data = await mb<{ 'release-groups': MbReleaseGroup[] }>(
+      `/release-group?artist=${encodeURIComponent(mbid)}&inc=artist-credits&limit=${limit}&offset=${offset}&fmt=json`
+    );
+    return data['release-groups'] ?? [];
+  }
+
+  async function getRelease(mbid: string): Promise<MbRelease> {
+    return mb<MbRelease>(`/release/${encodeURIComponent(mbid)}?inc=release-groups+recordings+artist-credits&fmt=json`);
+  }
+
   async function getTracksForReleaseGroup(mbid: string): Promise<MbTrack[]> {
     const data = await mb<{ releases: MbRelease[] }>(
-      `/release?release-group=${mbid}&inc=recordings+artist-credits&limit=1&fmt=json`
+      `/release?release-group=${mbid}&status=official&inc=media&limit=100&fmt=json`
     );
-    const release = data.releases?.[0];
+    // Choose a representative from bounded metadata, then fetch only its tracks.
+    const release = [...(data.releases ?? [])].sort((a, b) =>
+      (a.date || '9999').localeCompare(b.date || '9999')
+      || Number(a.media?.some(m => m.format === 'Digital Media')) - Number(b.media?.some(m => m.format === 'Digital Media'))
+      || a.id.localeCompare(b.id)
+    )[0];
     if (!release) return [];
-    return release.media.flatMap(m => m.tracks ?? []);
+    const full = release.media?.some(m => m.tracks?.length) ? release : await getRelease(release.id);
+    return full.media.flatMap((m, index) => (m.tracks ?? []).map(track => ({ ...track, discNumber: m.position ?? index + 1 })));
   }
 
   return {
     searchArtist,
     searchReleaseGroup,
     searchReleaseGroupByTitle,
+    searchRecordingByTitle,
+    getRecording,
     getArtistWithReleases,
     getReleaseGroup,
+    getRelease,
+    getArtistReleaseGroups,
     getTracksForReleaseGroup,
   };
 }
@@ -167,7 +218,11 @@ export const {
   searchArtist,
   searchReleaseGroup,
   searchReleaseGroupByTitle,
+  searchRecordingByTitle,
+  getRecording,
   getArtistWithReleases,
   getReleaseGroup,
+  getRelease,
+  getArtistReleaseGroups,
   getTracksForReleaseGroup,
 } = publicClient;

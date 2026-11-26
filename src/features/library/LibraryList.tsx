@@ -19,6 +19,7 @@ import { useTheme } from '@/features/theme/useTheme'
 
 type Props = {
   items: LibraryItem[]
+  onAlbumPress?: React.ComponentProps<typeof AlbumItem>['onPress']
   sortOrder: SortOrder
   onSortChange: (order: SortOrder) => void
   sortLabel: string
@@ -45,6 +46,7 @@ const LibraryList: React.FC<Props> = ({
   onSortChange,
   sortLabel,
   header,
+  onAlbumPress,
   collection = null,
   refresh,
 }) => {
@@ -84,6 +86,7 @@ const LibraryList: React.FC<Props> = ({
         return (
           <AlbumItem
             album={item.data}
+            onPress={onAlbumPress}
             showTypeLabel={showTypeLabel}
             isGridView={isGridView}
             gridWidth={gridWidth}
@@ -120,7 +123,7 @@ const LibraryList: React.FC<Props> = ({
           />
         )
     }
-  }, [isGridView, gridWidth, showTypeLabel])
+  }, [isGridView, gridWidth, showTypeLabel, onAlbumPress])
 
   return (
     <>
@@ -158,10 +161,9 @@ const LibraryList: React.FC<Props> = ({
               <RefreshControl
                 refreshing={refresh.refreshing}
                 onRefresh={refresh.onRefresh}
-                // The list is drawn on the app's background, which the theme
-                // owns, so the spinner takes the accent rather than iOS grey.
+                // Loading uses the same neutral tint on both platforms.
                 tintColor={colors.secondary}
-                colors={[colors.themeColor]}
+                colors={[colors.secondary]}
               />
             )
             : undefined

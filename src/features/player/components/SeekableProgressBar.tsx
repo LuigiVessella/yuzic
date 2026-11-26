@@ -2,13 +2,15 @@ import { motion, onDark } from '@/constants/design';
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedReaction, useAnimatedStyle, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { useRadius } from '@/features/theme/useRadius';
+import { useReducedMotion } from '@/features/theme/useReducedMotion';
 
 type SeekableProgressBarProps = {
   value: number;
   duration: number;
   onSeek: (position: number) => void;
+  onPreview?: (position: number | null) => void;
   fillColor?: string;
   trackColor?: string;
   style?: object;
@@ -35,38 +37,66 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
   value,
   duration,
   onSeek,
+  onPreview,
   fillColor = onDark.text,
   trackColor = onDark.mutedText,
   style,
 }) => {
   const rad = useRadius();
+  const reduced = useReducedMotion();
   const durationRef = useRef(duration);
   const onSeekRef = useRef(onSeek);
+  const previewRef = useRef(onPreview);
+  previewRef.current = onPreview;
+  const previewEnabled = !!onPreview;
   const width = useSharedValue(0);
   const isSeeking = useSharedValue(false);
   const pendingRatio = useSharedValue(-1);
   const displayRatio = useSharedValue(0);
+  const sampleRatio = useSharedValue(0);
+  const lastPreview = useSharedValue(-1);
 
   useEffect(() => { durationRef.current = duration; }, [duration]);
   useEffect(() => { onSeekRef.current = onSeek; }, [onSeek]);
 
   useEffect(() => {
-    if (isSeeking.value) return;
-    const ratio = duration > 0 ? Math.max(0, Math.min(1, value / duration)) : 0;
-    // Hold where the finger let go until playback catches up, so the fill
-    // does not snap back to the old position for the tick before it.
-    if (pendingRatio.value >= 0) {
-      if (Math.abs(ratio - pendingRatio.value) > 0.02) return;
-      pendingRatio.value = -1;
+    sampleRatio.value = ratioAt(value, duration);
+  }, [value, duration, sampleRatio]);
+
+  useAnimatedReaction(
+    () => sampleRatio.value,
+    ratio => {
+      if (isSeeking.value) return;
+      // Keep the scrub position until the backend reports the seek.
+      if (pendingRatio.value >= 0) {
+        if (Math.abs(ratio - pendingRatio.value) > 0.02) return;
+        pendingRatio.value = -1;
+      }
+      displayRatio.value = reduced ? ratio : withTiming(ratio, { duration: motion.progress, easing: Easing.linear });
     }
-    displayRatio.value = withTiming(ratio, { duration: motion.progress, easing: Easing.linear });
-  }, [value, duration, displayRatio, isSeeking, pendingRatio]);
+  );
 
   const seekTo = useCallback((ratio: number) => {
     onSeekRef.current(ratio * durationRef.current);
+    previewRef.current?.(null);
   }, []);
 
+  const previewAt = useCallback((ratio: number) => previewRef.current?.(ratio * durationRef.current), []);
+
   const gesture = useMemo(() => {
+    const updatePreview = (x: number) => {
+      'worklet';
+      const ratio = ratioAt(x, width.value);
+      displayRatio.value = ratio;
+      if (!previewEnabled) return;
+      const position = ratio * duration;
+      const previous = lastPreview.value;
+      if (Math.floor(position) === Math.floor(previous)
+        && Math.floor(duration - position) === Math.floor(duration - previous)) return;
+      lastPreview.value = position;
+      runOnJS(previewAt)(ratio);
+    };
+
     const commit = (x: number) => {
       'worklet';
       const ratio = ratioAt(x, width.value);
@@ -81,11 +111,10 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
       .failOffsetY([-14, 14])
       .onStart(event => {
         isSeeking.value = true;
-        displayRatio.value = ratioAt(event.x, width.value);
+        lastPreview.value = -1;
+        updatePreview(event.x);
       })
-      .onUpdate(event => {
-        displayRatio.value = ratioAt(event.x, width.value);
-      })
+      .onUpdate(event => updatePreview(event.x))
       // Called for a scrub that is cancelled as well as one that ends: if
       // something does take the touch, the listener still lands where the
       // bar was showing rather than nowhere.
@@ -98,14 +127,14 @@ export const SeekableProgressBar: React.FC<SeekableProgressBarProps> = ({
     });
 
     return Gesture.Race(scrub, tap);
-  }, [displayRatio, isSeeking, pendingRatio, seekTo, width]);
+  }, [displayRatio, duration, isSeeking, lastPreview, pendingRatio, seekTo, width, previewEnabled, previewAt]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     width.value = event.nativeEvent.layout.width;
   }, [width]);
 
   const fillStyle = useAnimatedStyle(() => ({
-    width: `${displayRatio.value * 100}%`,
+    transform: [{ scaleX: displayRatio.value }],
   }));
 
   return (
@@ -131,5 +160,7 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
+    width: '100%',
+    transformOrigin: 'left center',
   },
 });

@@ -36,6 +36,7 @@ export async function fetchWithTimeout(
   }, timeoutMs);
 
   const abortFromCaller = () => controller.abort();
+  if (signal?.aborted) controller.abort();
   signal?.addEventListener('abort', abortFromCaller, { once: true });
 
   try {

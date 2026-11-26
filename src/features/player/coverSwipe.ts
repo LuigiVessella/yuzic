@@ -15,7 +15,7 @@ export const SWIPE_DISTANCE_RATIO = 0.28;
  */
 export const SWIPE_VELOCITY = 500;
 
-export type SwipeOutcome = 'next' | 'previous' | 'cancel';
+type SwipeOutcome = 'next' | 'previous' | 'cancel';
 
 /**
  * Which way a completed swipe resolves.

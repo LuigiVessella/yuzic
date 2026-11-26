@@ -133,7 +133,8 @@
         "english": "English",
         "japanese": "Japanese",
         "french": "French",
-        "chinese": "Chinese"
+        "chinese": "Chinese",
+        "italian": "Italian"
       },
       "display": "Display",
       "playing": "Playing",
@@ -720,9 +721,21 @@
       "longestGap": "Days untouched",
       "topArtists": "Your artists",
       "topTracks": "Your tracks"
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "explainer": "Yuzic records what goes wrong — failed tracks, crashes, downloads that did not finish. Share this with a bug report so the cause can be found. Passwords and server credentials are removed automatically; song titles and your server's address may appear.",
+      "share": "Share diagnostics",
+      "sharing": "Preparing…",
+      "clear": "Clear diagnostics",
+      "cleared": "Diagnostics cleared",
+      "empty": "Nothing recorded yet. Anything that goes wrong will show up here.",
+      "recordCount_one": "{{count}} record",
+      "recordCount_other": "{{count}} records"
     }
   },
   "common": {
+    "unknownArtist": "Unknown artist",
     "cancel": "Cancel",
     "delete": "Delete",
     "next": "Next",
@@ -776,7 +789,9 @@
     "home": {
       "subtitle": "Your personal music library. Stream from your own server anywhere.",
       "getStarted": "Get Started",
-      "terms": "By continuing you confirm that you've read and accepted our Terms and Privacy Policy"
+      "terms": "By continuing you confirm that you've read and accepted our {{terms}} and {{privacy}}",
+      "termsLink": "Terms",
+      "privacyLink": "Privacy Policy"
     },
     "servers": {
       "title": "Your Servers",
@@ -919,6 +934,7 @@
       "browse": "Browse"
     },
     "collection": {
+      "showCollaborations": "Show collaborations",
       "empty": "Nothing here yet.",
       "downloadedEmpty": "Nothing downloaded yet. Download an album or playlist from its options to play it without a connection.",
       "playFailed": "Couldn't start playback."
@@ -1010,13 +1026,16 @@
     "title": "Search",
     "placeholder": "Search for music, artists, or playlists...",
     "noResults": "No results found",
-    "searchError": "Couldn't reach the server — results may be incomplete",
-    "searchLocalOnly": "Showing your library only — can't reach the server",
+    "searchError": "Some sources couldn't be reached — results may be incomplete",
+    "sourceUnavailable": "Source unavailable",
+    "retrySource": "Retry {{source}}",
+    "searchLocalOnly": "Showing available results — some sources are offline",
     "recentSearches": "Recent searches",
     "clearRecent": "Clear",
     "removeRecentSearch": "Remove \"{{query}}\" from recent searches",
     "recentlyOpened": "Recently opened",
     "scope": {
+      "all": "All sources",
       "library": "Your Library",
       "other": "Other sources"
     },
@@ -1116,6 +1135,10 @@
     "offlineBanner": "Offline — discovery is paused, and your library is here"
   },
   "playing": {
+    "connection": {
+      "offline": "No network. Saved music is still available.",
+      "serverUnreachable": "Your music server is unreachable. You can listen to saved music."
+    },
     "volume": "Volume",
     "volumeOnServer": "Server volume",
     "output": {
@@ -1141,7 +1164,8 @@
       "playingFromQueue": "Playing from Queue"
     },
     "lyrics": {
-      "title": "Lyrics"
+      "title": "Lyrics",
+      "resumeFollowing": "Return to current verse"
     },
     "aboutArtist": {
       "header": "Artist"
@@ -1281,8 +1305,8 @@
       "title": "External Album",
       "downloadToServer": "Download to Server",
       "downloadSong": "Download Song",
-      "get": "Get",
-      "getSong": "Get Song",
+      "get": "Get album",
+      "getSong": "Get track",
       "want": "Want",
       "wanted": "Wanted",
       "arrived": "{{title}} is now in your library",
@@ -1298,7 +1322,7 @@
       "saveAsDefaultAlbums": "Save as default for albums",
       "saveAsDefaultTracks": "Save as default for tracks",
       "qualityProfile": "Quality Profile",
-      "confirmGet": "Get"
+      "perTrack": "One request will be sent per track."
     },
     "serverStatus": {
       "onServer": "In Library",
@@ -1341,6 +1365,10 @@
           "BAD_RESPONSE": "That address didn't answer like SoulSync. Check the URL.",
           "HTTP_ERROR": "Could not reach SoulSync. Check the server and try again.",
           "NOT_AVAILABLE": "SoulSync has no Soulseek connection configured.",
+          "INSUFFICIENT_SCOPE": "This SoulSync API key can read downloads but cannot request them. Use a key with write access.",
+          "not_found": "SoulSync found no matching track on Soulseek.",
+          "failed": "SoulSync could not complete the track search.",
+          "unconfirmed": "SoulSync accepted the request, but its result is still unknown. Check SoulSync before retrying.",
           "no_tracks": "Couldn't list this album's songs to request.",
           "some_tracks_failed": "Some of this album's songs couldn't be requested from SoulSync."
         }
@@ -1389,6 +1417,7 @@
     "openArrival": "Open",
     "artistLabel": "Artist",
     "status": {
+      "processing": "Waiting for library import",
       "queued": "Queued",
       "downloading": "Downloading · {{progress}}%",
       "failed": "Didn't arrive",
@@ -1657,6 +1686,7 @@
       "checkConnection": "Check connection"
     },
     "player": {
+      "favorite": "Favorite",
       "close": "Close player",
       "songOptions": "Song options",
       "addToPlaylist": "Add to playlist",

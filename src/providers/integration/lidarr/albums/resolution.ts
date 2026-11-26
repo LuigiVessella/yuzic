@@ -104,7 +104,7 @@ export function albumRequestFromExternal(album: Album): LidarrAlbumRequest {
   return {
     albumTitle: album.title,
     artistName: album.artist.name,
-    albumMbid: album.externalIds.mbid,
+    albumMbid: album.externalIds.mbidType === 'release' ? undefined : album.externalIds.mbid,
     artistMbid: album.artist.externalIds.mbid,
     albumDeezerId: album.externalIds.deezerId,
     artistDeezerId: album.artist.externalIds.deezerId,

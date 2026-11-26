@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { View, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { Text } from '@/components/Text';
 import { Ellipsis } from 'lucide-react-native';
 import { notify } from '@/components/toast';
@@ -12,11 +12,16 @@ import { usePlayingActions } from '@/features/playback/PlayingContext';
 import { usePlayableSongResolver } from '@/features/song/usePlayableSongResolver';
 import { useSongActionSheets } from '@/features/entity-actions/SongActionSheetContext';
 import IconActionButton from '@/components/IconActionButton';
-import MediaListRow from '@/components/MediaListRow';
+import { MediaImage } from '@/components/MediaImage';
+import Touchable from '@/components/Touchable';
+import { useRadius } from '@/features/theme/useRadius';
+import { useListDensity } from '@/features/theme/useListDensity';
+import { useWindowLayout } from '@/features/layout/useWindowLayout';
 import {
   selectSongPlayCounts,
   selectSongLastPlayedAt,
 } from '@/state/redux/selectors/statsSelectors';
+import { useAlbumsById } from '@/features/album/useAlbumsById';
 import { useSongsById } from '@/features/song/useSongsById';
 import { seededShuffle } from '@/features/home/hooks/useDailyLayout';
 import { useStableList } from '@/features/home/hooks/useStableList';
@@ -65,19 +70,20 @@ type Props = { refreshKey?: number };
 export default function QuickPicksSection({ refreshKey = 0 }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const rad = useRadius();
+  const density = useListDensity();
   const icons = useIconSize();
+  const albums = useAlbumsById();
   const { playSong } = usePlayingActions();
   const { resolvePlayableSong } = usePlayableSongResolver();
   const itemCount = useSelector(selectHomeShelfItemCount);
   // Stable while the picks are unchanged; see `useStableList`.
   const picks = useStableList(useQuickPicks(refreshKey, itemCount));
-  const { width: screenWidth } = useWindowDimensions();
-  // A page is a column of four track rows, so it is capped like any other
-  // column of rows rather than following the window: a 1366pt page put the
-  // title and the ⋯ a foot apart with nothing in between. The peek is what
-  // says there is another page, and it only has a job while the page is the
-  // width of the window.
+  const { width: screenWidth } = useWindowLayout();
+  // Keep the existing four-pick pages and peek. Tiles use two columns when
+  // there is room, with a single column in narrow windows.
   const pageWidth = Math.min(screenWidth - QUICK_PICKS_PEEK, contentWidth.readable);
+  const columns = pageWidth >= 340 ? 2 : 1;
   const { openSongOptions } = useSongActionSheets();
 
   const inFlightRef = useRef<string | null>(null);
@@ -129,24 +135,33 @@ export default function QuickPicksSection({ refreshKey = 0 }: Props) {
         {pages.map((page, pageIdx) => (
           <View key={pageIdx} style={[styles.page, { width: pageWidth }]}>
             {page.map(song => (
-              <MediaListRow
-                key={song.localId}
-                title={song.title}
-                subtitle={song.artist.name}
-                cover={song.cover}
-                onPress={() => { void handlePress(song); }}
-                variant="compact"
-                style={styles.rowWrapper}
-                rowStyle={styles.row}
-                trailing={
+              <View key={song.localId} style={[
+                styles.pick,
+                { width: (pageWidth - SECTION_H_PADDING * 2 - spacing.sm * (columns - 1)) / columns,
+                  backgroundColor: colors.card, borderRadius: rad.card,
+                  paddingVertical: density.rowPadding },
+              ]}>
+                <Touchable
+                  style={styles.pickContent}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11y.rows.titleAndSubtitle', { title: song.title, subtitle: song.artist.name })}
+                  onPress={() => { void handlePress(song); }}
+                >
+                  <MediaImage cover={song.cover}
+                    fallbackCover={albums.get(song.album.nativeId)?.cover ?? song.album.cover}
+                    size="thumb" style={[styles.art, { borderRadius: rad.thumb }]} />
+                  <View style={styles.pickText}>
+                    <Text numberOfLines={2} style={[styles.pickTitle, { color: colors.secondary }]}>{song.title}</Text>
+                    <Text numberOfLines={1} style={[styles.pickSubtitle, { color: colors.subtext }]}>{song.artist.name}</Text>
+                  </View>
+                </Touchable>
                   <IconActionButton
                     icon={<Ellipsis size={icons.row} color={colors.secondary} />}
                     onPress={() => { void handleOptions(song); }}
                     accessibilityLabel={t('a11y.rows.options', { title: song.title })}
                     size="compact"
                   />
-                }
-              />
+              </View>
             ))}
           </View>
         ))}
@@ -166,16 +181,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: SECTION_H_PADDING,
   },
   page: {
-    gap: spacing.xxs,
-  },
-  rowWrapper: {
-    paddingHorizontal: 0,
-  },
-  // Horizontal only. `rowStyle` is spread after the density padding in
-  // MediaListRow, so a `paddingVertical` here silently replaced it and Quick
-  // Picks was the one list on Home that ignored the density setting while
-  // looking like it honoured it.
-  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     paddingHorizontal: SECTION_H_PADDING,
   },
+  pick: { flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.sm, overflow: 'hidden' },
+  pickContent: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  art: { width: 40, height: 40 },
+  pickText: { flex: 1, minWidth: 0 },
+  pickTitle: { ...typography.compactRowTitle, fontWeight: '500' },
+  pickSubtitle: { ...typography.caption, marginTop: spacing.xxs },
 });

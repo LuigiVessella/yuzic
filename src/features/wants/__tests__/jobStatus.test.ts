@@ -72,15 +72,15 @@ describe('wantStatus', () => {
     expect(status).toEqual({ kind: 'queued' });
   });
 
-  it('is queued for a finished item still waiting to leave the queue', () => {
-    // Not progress any more: it has done its work, and its disappearance is
-    // what arrival watches for.
+  it('waits for library import when the transfer is complete', () => {
+    // Transfer completion is not library arrival; only catalog sync
+    // can confirm that the requested release is available.
     const status = wantStatus(
       want({ jobRef: { downloader: 'lidarr', requestedAt: NOW } }),
       { queues: queue([queueItem({ active: false, percentComplete: 100 })]), hasArrived: false, now: NOW }
     );
 
-    expect(status).toEqual({ kind: 'queued' });
+    expect(status).toEqual({ kind: 'processing' });
   });
 
   it('stays queued while a job the queue has not shown yet is still within the grace window', () => {

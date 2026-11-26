@@ -5,10 +5,12 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Text } from '@/components/Text';
 import { useTranslation } from 'react-i18next';
 
-import { motion, spacing, typography } from '@/constants/design';
+import { controlSize, iconSize, motion, spacing, typography } from '@/constants/design';
 import { useTheme } from '@/features/theme/useTheme';
 import { useReducedMotion } from '@/features/theme/useReducedMotion';
 import SkeletonListRow from '@/components/SkeletonListRow';
+import SpinningLoaderCircle from '@/components/SpinningLoaderCircle';
+import Touchable from '@/components/Touchable';
 import { getSourceMeta } from '@/features/sources/registry';
 import type { useSearchScreenModel } from '@/features/search/useSearchScreenModel';
 import RecentSearches from './RecentSearches';
@@ -21,9 +23,7 @@ type Model = ReturnType<typeof useSearchScreenModel>;
  * The scrollable body: recent searches when idle, a skeleton while loading,
  * or the results themselves — library rows in one flat list, "Other sources"
  * rows grouped under their source's own labelled header. Library and
- * external are never both on screen (`m.isOtherScope` picks exactly one),
- * the render-side half of the Library-XOR-Other-sources rule the fetch side
- * enforces in `planSearchLegs`.
+ * external sections can appear together in the default `all` scope.
  */
 export default function SearchResultsBody({ m }: { m: Model }) {
   const { t } = useTranslation();
@@ -45,10 +45,8 @@ export default function SearchResultsBody({ m }: { m: Model }) {
   const branch = (key: string, children: React.ReactNode) => (
     <Animated.View
       key={key}
-      entering={reduced
-        ? FadeIn.duration(motion.quick)
-        : FadeIn.duration(motion.contentFade).withInitialValues({ transform: [{ translateY: BRANCH_RISE }] })}
-      exiting={FadeOut.duration(motion.quick)}
+      entering={reduced ? undefined : BODY_ENTERING}
+      exiting={reduced ? undefined : BODY_EXITING}
     >
       {children}
     </Animated.View>
@@ -85,9 +83,11 @@ export default function SearchResultsBody({ m }: { m: Model }) {
     return branch('browse', <SearchBrowse />);
   }
 
-  if (m.isLoading) {
+  if (m.isLoading && m.libraryResults.length === 0 && m.externalResultsBySource.size === 0) {
     return branch('loading', <>{[...Array(8)].map((_, i) => <SkeletonListRow key={i} />)}</>);
   }
+
+  const pendingSource = Object.values(m.sourceStatuses).includes('pending');
 
   const row = (result: Parameters<typeof ResultRow>[0]['result']) => (
     <ResultRow
@@ -104,13 +104,19 @@ export default function SearchResultsBody({ m }: { m: Model }) {
 
   return branch('results', (
     <>
-      {!m.isOtherScope && m.libraryResults.map(result => (
+      {m.resultScope === 'all' && m.libraryResults.length > 0 && (
+        <View style={styles.sourceHeader}>
+          <Text style={[styles.sourceHeaderText, { color: colors.subtext }]}>{t('search.scope.library')}</Text>
+        </View>
+      )}
+      {m.showLibraryResults && m.libraryResults.map(result => (
         <View key={`local:${result.type}:${result.id}`} style={styles.resultBlock}>
           {row(result)}
         </View>
       ))}
 
-      {m.isOtherScope && Array.from(m.externalResultsBySource.entries()).map(([sourceId, results]) => {
+      {m.showExternalResults && Array.from(m.externalResultsBySource.entries()).map(([sourceId, results]) => {
+        const status = m.sourceStatuses[sourceId];
         const meta = getSourceMeta(sourceId);
         const label = meta?.label ?? sourceId;
         const color = meta?.color ?? colors.subtext;
@@ -122,6 +128,21 @@ export default function SearchResultsBody({ m }: { m: Model }) {
                 <SourceBadge letter={letter} color={color} />
               )}
               <Text style={[styles.sourceHeaderText, { color: colors.subtext }]}>{label}</Text>
+              {status === 'pending' && (
+                <SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} />
+              )}
+              {status === 'failed' && (
+                <>
+                  <Text accessibilityLiveRegion="polite" style={[styles.sourceStatusText, { color: colors.subtext }]}>
+                    {t('search.sourceUnavailable')}
+                  </Text>
+                  <Touchable accessibilityRole="button" style={styles.retry} onPress={() => m.retrySource(sourceId)}>
+                    <Text style={[styles.sourceHeaderText, { color: colors.secondary }]}>
+                      {t('search.retrySource', { source: label })}
+                    </Text>
+                  </Touchable>
+                </>
+              )}
             </View>
             {results.map((result, i) => (
               <View key={`external:${result.type}:${result.id}`} style={[styles.resultBlock, i === 0 && styles.resultBlockFirst]}>
@@ -137,20 +158,25 @@ export default function SearchResultsBody({ m }: { m: Model }) {
           {t('search.noResults')}
         </Text>
       )}
+      {m.isLoading && !pendingSource && <View style={styles.pending}><SpinningLoaderCircle size={iconSize.loader} color={colors.subtext} /></View>}
     </>
   ));
 }
 
 /** How far a body rises as it fades in — enough to read as arrival, not as travel. */
 const BRANCH_RISE = 8;
+const BODY_ENTERING = FadeIn.duration(motion.contentFade).withInitialValues({ transform: [{ translateY: BRANCH_RISE }] });
+const BODY_EXITING = FadeOut.duration(motion.quick);
 
 const styles = StyleSheet.create({
+  pending: { alignItems: 'center', paddingVertical: spacing.md },
   resultBlock: {},
   resultBlockFirst: {
     paddingTop: spacing.sm,
   },
   sourceHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -161,6 +187,8 @@ const styles = StyleSheet.create({
     ...typography.rowSubtitle,
     fontWeight: '500',
   },
+  sourceStatusText: { ...typography.caption },
+  retry: { minHeight: controlSize.minimumTarget, justifyContent: 'center', paddingHorizontal: spacing.sm },
   noResults: {
     ...typography.body,
     textAlign: 'center',

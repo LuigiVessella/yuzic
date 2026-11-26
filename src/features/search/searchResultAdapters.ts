@@ -15,7 +15,7 @@
  */
 import type { SearchResult } from '@/features/search/searchRanking';
 import { artistCoverSubject, missingCover, type CoverSource } from '@/domain/entities/Cover';
-import type { Album } from '@/domain/entities/Album';
+import type { Album, ReleaseType } from '@/domain/entities/Album';
 import type { Artist } from '@/domain/entities/Artist';
 import type { Playlist } from '@/domain/entities/Playlist';
 import { makeLocalId } from '@/domain/identity/LocalId';
@@ -36,6 +36,7 @@ function externalAlbum(input: {
   cover: CoverSource;
   externalSource?: string;
   externalIds?: unknown;
+  releaseType?: ReleaseType;
 }): Album {
   const provenance = integrationProvenance(input.externalSource ?? 'unknown');
   return {
@@ -52,7 +53,7 @@ function externalAlbum(input: {
       name: input.artistName,
       cover: missingCover(artistCoverSubject(input.artistName)),
     },
-    releaseType: 'album',
+    releaseType: input.releaseType ?? 'album',
     genres: [],
     songIds: [],
   };
@@ -86,10 +87,11 @@ export function resultToAlbum(result: SearchResult, activeServerId: string | und
     ? externalAlbum({
         id: result.id,
         title: result.title,
-        artistName: result.subtext,
+        artistName: result.artistName ?? result.subtext,
         cover: result.cover,
         externalSource: result.externalSource,
         externalIds: result.externalIds,
+        releaseType: result.releaseType,
       })
     : localAlbum(result, activeServerId);
 }
@@ -100,10 +102,11 @@ export function entityToAlbum(entity: SearchEntityEntry): Album {
   return externalAlbum({
     id: entity.id,
     title: entity.title,
-    artistName: entity.subtitle,
+    artistName: entity.artistName ?? (/^\d{4}$/.test(entity.subtitle) ? '' : entity.subtitle),
     cover: entity.cover,
     externalSource: entity.externalSource,
     externalIds: entity.externalIds,
+    releaseType: entity.releaseType,
   });
 }
 
@@ -158,7 +161,7 @@ export function entityToArtist(entity: SearchEntityEntry): Artist {
 
 /** A playlist row's domain entity. Playlists have no external form today —
  *  `SearchEntityType` (src/features/search/SearchContext.tsx) only covers
- *  album/artist — so this is always local. */
+ *  albums, artists and songs, but playlists remain local. */
 export function resultToPlaylist(result: SearchResult, activeServerId: string | undefined): Playlist {
   const provenance = serverProvenance(activeServerId ?? '');
   return {

@@ -1,3 +1,4 @@
+import { operationFailure } from './backendErrors';
 import type { BrowseNode } from 'yuzic-engine';
 import { isFlat } from './audioSettings';
 import type { MediaItem } from './mediaItem';
@@ -11,20 +12,9 @@ import {
   type Shadow,
 } from './engineBackend';
 import { createEngineQueueSync } from './engineQueueSync';
+import { log } from '@/features/diagnostics/log';
+import { detailOf } from '@/features/diagnostics/errorDetail';
 
-/**
- * `PlayerBackend`, implemented on yuzic-engine.
- *
- * The engine is loaded lazily and by `require`, for the same reason the smoke
- * test does it: if the native module is missing this throws, and it should
- * surface as a playback error rather than a blank screen at import time.
- *
- * Every command is fired and not awaited. That is not carelessness — the
- * interface promises synchronous calls, the app has nothing to do while a
- * bridge round-trips, and a rejected promise nobody holds becomes an unhandled
- * rejection. So each one is caught and turned into the error event the app
- * already listens for.
- */
 /**
  * Reached by `require` rather than `import` so a missing native module
  * surfaces as a playback error at first use, not a blank screen at import.
@@ -35,6 +25,15 @@ function requireEngine() {
   return (require('yuzic-engine') as typeof import('yuzic-engine')).YuzicEngine;
 }
 
+/**
+ * `PlayerBackend`, implemented on yuzic-engine.
+ *
+ * Every command is fired and not awaited. That is not carelessness — the
+ * interface promises synchronous calls, the app has nothing to do while a
+ * bridge round-trips, and a rejected promise nobody holds becomes an unhandled
+ * rejection. So each one is caught and turned into the error event the app
+ * already listens for.
+ */
 export function createEngineBackend(): PlayerBackend {
   let shadow: Shadow = createShadow();
   let listeners: ((event: BackendEvent) => void)[] = [];
@@ -97,8 +96,8 @@ export function createEngineBackend(): PlayerBackend {
 
   function fire(what: string, run: () => Promise<unknown>) {
     const report = (error: unknown) => {
-      console.warn(`[player] ${what} failed`, error);
-      emit({ type: 'error', code: 'ENGINE_CALL_FAILED', message: `${what}: ${String(error)}` });
+      log.player.warn('engine call failed', { call: what, detail: detailOf(error) });
+      emit(operationFailure(what, error));
     };
 
     // Everything waits for setup, and this is not belt-and-braces: on the
@@ -199,7 +198,8 @@ export function createEngineBackend(): PlayerBackend {
               reportTrackChange(event.index, event.id);
             }
             if (event.type === 'error') {
-              emit({ type: 'error', code: event.code, message: event.message });
+              // Whole: rebuilding it by field is what dropped 1.3.0's parts.
+              emit(event);
             }
             if (event.type === 'queueChange') {
               void reconcileWithEngine();
@@ -376,11 +376,9 @@ export function createEngineBackend(): PlayerBackend {
         id: 'root',
         title: 'yuzic',
         children: categories.map(category => ({
-          id: category.mediaId,
-          title: category.title,
+          ...toBrowseNode({ mediaId: category.mediaId, title: category.title, children: category.items }),
           ...(category.icon ? { icon: category.icon } : {}),
           ...(category.layout ? { layout: category.layout } : {}),
-          children: category.items.map(item => toBrowseNode(item, category.mediaId)),
         })),
       };
       const serialized = JSON.stringify(tree);

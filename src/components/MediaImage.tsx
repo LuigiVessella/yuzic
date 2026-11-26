@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/Text';
 import { fontScaleCap } from '@/constants/design';
@@ -17,6 +17,7 @@ import {
   IMAGE_CACHE_POLICY,
   markImageUrlFailed,
   markImageUrlSucceeded,
+  subscribeImageFailures,
 } from '@/features/artwork/imageCache';
 
 /**
@@ -52,10 +53,12 @@ const INITIALS_SIZE: Record<'thumb' | 'grid' | 'detail' | 'background', number> 
 
 export function MediaImage({
   cover,
+  fallbackCover,
   size,
   style,
 }: {
   cover: CoverSource;
+  fallbackCover?: CoverSource;
   size: 'thumb' | 'grid' | 'detail' | 'background';
   style?: any;
 }) {
@@ -82,16 +85,8 @@ export function MediaImage({
     const { seed, name } = placeholderIdentity(resolved);
     return coverPlaceholder(seed, name, isDarkMode ? 'dark' : 'light');
   }, [resolved, isDarkMode]);
-  const [failedVersion, setFailedVersion] = useState(0);
-  const primaryFailed = hasImageUrlFailed(uri);
-  const sourceUri = useMemo(() => {
-    void failedVersion;
-    return uri && !primaryFailed ? uri : null;
-  }, [failedVersion, primaryFailed, uri]);
-
-  useEffect(() => {
-    setFailedVersion(version => version + 1);
-  }, [uri]);
+  const primaryFailed = useSyncExternalStore(subscribeImageFailures, () => hasImageUrlFailed(uri));
+  const sourceUri = uri && !primaryFailed ? uri : null;
 
   if (uri === DRAWN_COVER.heart) {
     return (
@@ -113,6 +108,9 @@ export function MediaImage({
   // tile — issue #290, a library of live recordings that will never have
   // covers — the stand-in is derived from what the cover is of, so each album
   // gets its own colour and keeps it.
+  if (!sourceUri && fallbackCover) {
+    return <MediaImage cover={fallbackCover} size={size} style={style} />;
+  }
   if (!sourceUri) {
     return (
       <View
@@ -163,7 +161,6 @@ export function MediaImage({
         }}
         onFailure={() => {
           markImageUrlFailed(sourceUri);
-          setFailedVersion(version => version + 1);
         }}
       />
     </View>

@@ -4,6 +4,8 @@
 *.jks
 *.keystore
 build/
+/.local/
+/releases/
 ios/Pods
 ios/Podfile.lock
 # dependencies

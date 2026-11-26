@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import type { Album } from '@/domain/entities/Album';
+import { albumArtistLabel, type Album } from '@/domain/entities/Album';
 import AlbumOptions from '@/components/options/AlbumOptions';
 import { useSheetRef } from '@/components/useSheetRef';
 import { prefetchCovers } from '@/features/artwork/imageCache';
@@ -10,6 +10,7 @@ import LibraryItem from './LibraryItem';
 
 interface ItemProps {
   album: Album;
+  onPress?: (album: Album) => void;
   /** False on a screen of nothing but albums, where the "Album • " prefix
    *  would be the same word on every row and cost the artist its space. */
   showTypeLabel?: boolean;
@@ -18,17 +19,19 @@ interface ItemProps {
   gridSpacing?: number;
 }
 
-const AlbumItem: React.FC<ItemProps> = ({ album, showTypeLabel = true, isGridView, gridWidth, gridSpacing }) => {
+const AlbumItem: React.FC<ItemProps> = ({ album, onPress, showTypeLabel = true, isGridView, gridWidth, gridSpacing }) => {
   const { t } = useTranslation();
+  const credit = albumArtistLabel(album, t('common.unknownArtist'));
   const navigation = useNavigation<any>();
   const sheetRef = useSheetRef();
   const [optionsMounted, setOptionsMounted] = useState(false);
 
   const handlePress = useCallback(() => {
     prefetchCovers([album.cover], 'detail');
+    if (onPress) return onPress(album);
     // Server adapter identity — this becomes `useAlbum(id)` -> `api.albums.get(id)`.
     navigation.navigate('albumView', { id: album.nativeId });
-  }, [album, navigation]);
+  }, [album, navigation, onPress]);
 
   const handleLongPress = useCallback(() => {
     heavyHaptic();
@@ -46,7 +49,7 @@ const AlbumItem: React.FC<ItemProps> = ({ album, showTypeLabel = true, isGridVie
         testID="library-album-item"
         cover={album.cover}
         title={album.title}
-        subtext={showTypeLabel ? t('library.albumTypeLabel', { artist: album.artist.name }) : album.artist.name}
+        subtext={showTypeLabel ? t('library.albumTypeLabel', { artist: credit }) : credit}
         isGridView={isGridView}
         gridWidth={gridWidth}
         gridSpacing={gridSpacing}

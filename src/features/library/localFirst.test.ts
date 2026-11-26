@@ -45,6 +45,13 @@ const externalSong = (over: Partial<Song> = {}): Song =>
     ...over,
   });
 
+it('does not replace a known recording with a same-named different recording', () => {
+  const owned = song({ externalIds: { mbid: 'owned-recording' } });
+  const browsed = externalSong({ externalIds: { mbid: 'another-recording' } });
+  const index = buildLibraryIndex({ songs: [owned], albums: [], artists: [] });
+  expect(preferLocalSong(index, browsed)).toBe(browsed);
+});
+
 const album = (over: Partial<Album> = {}): Album => ({
   localId: 'local:album:srv:server-1:al1' as Album['localId'],
   nativeId: 'al1',
